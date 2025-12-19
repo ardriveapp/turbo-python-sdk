@@ -1,0 +1,183 @@
+import pytest
+from unittest.mock import Mock, patch
+from turbo_sdk import Turbo
+from turbo_sdk.signers.ethereum import EthereumSigner
+from turbo_sdk.signers.arweave import ArweaveSigner
+
+
+class TestTurbo:
+    """Test Turbo class functionality (non-network tests)"""
+
+    @pytest.fixture
+    def ethereum_signer(self):
+        """Mock Ethereum signer"""
+        signer = Mock()
+        signer.signature_type = 3
+        signer.public_key = b"\x04" + b"x" * 64  # 65 bytes total
+        return signer
+
+    @pytest.fixture
+    def arweave_signer(self):
+        """Mock Arweave signer"""
+        signer = Mock()
+        signer.signature_type = 1
+        signer.public_key = bytearray(b"y" * 512)  # 512 bytes
+        return signer
+
+    def test_init_with_ethereum_signer(self, ethereum_signer):
+        """Test initialization with Ethereum signer"""
+        turbo = Turbo(ethereum_signer, network="mainnet")
+
+        assert turbo.signer == ethereum_signer
+        assert turbo.network == "mainnet"
+        assert turbo.token == "ethereum"
+        assert turbo.upload_url == "https://upload.ardrive.io"
+        assert turbo.payment_url == "https://payment.ardrive.io"
+
+    def test_init_with_arweave_signer(self, arweave_signer):
+        """Test initialization with Arweave signer"""
+        turbo = Turbo(arweave_signer, network="testnet")
+
+        assert turbo.signer == arweave_signer
+        assert turbo.network == "testnet"
+        assert turbo.token == "arweave"
+        assert turbo.upload_url == "https://upload.ardrive.dev"
+        assert turbo.payment_url == "https://payment.ardrive.dev"
+
+    def test_init_with_unsupported_signer(self):
+        """Test initialization with unsupported signer type"""
+        unsupported_signer = Mock()
+        unsupported_signer.signature_type = 99  # Invalid type
+
+        with pytest.raises(ValueError, match="Unsupported signer type: 99"):
+            Turbo(unsupported_signer)
+
+    def test_default_network(self, ethereum_signer):
+        """Test default network is mainnet"""
+        turbo = Turbo(ethereum_signer)
+
+        assert turbo.network == "mainnet"
+        assert "ardrive.io" in turbo.upload_url  # mainnet URLs
+
+    def test_testnet_urls(self, ethereum_signer):
+        """Test testnet URLs are used correctly"""
+        turbo = Turbo(ethereum_signer, network="testnet")
+
+        assert "ardrive.dev" in turbo.upload_url
+        assert "ardrive.dev" in turbo.payment_url
+
+    def test_mainnet_urls(self, arweave_signer):
+        """Test mainnet URLs are used correctly"""
+        turbo = Turbo(arweave_signer, network="mainnet")
+
+        assert "ardrive.io" in turbo.upload_url
+        assert "ardrive.io" in turbo.payment_url
+
+    def test_token_detection_ethereum(self, ethereum_signer):
+        """Test token detection for Ethereum signer"""
+        turbo = Turbo(ethereum_signer)
+        assert turbo.token == "ethereum"
+
+    def test_token_detection_arweave(self, arweave_signer):
+        """Test token detection for Arweave signer"""
+        turbo = Turbo(arweave_signer)
+        assert turbo.token == "arweave"
+
+    def test_get_wallet_address_ethereum(self, ethereum_signer):
+        """Test wallet address generation for Ethereum"""
+        # Mock the keccak hash function
+        import turbo_sdk.client
+
+        original_import = turbo_sdk.client.__dict__.get("keccak")
+
+        def mock_keccak(data):
+            # Return a mock hash that ends with known bytes
+            return (
+                b"\x00" * 12
+                + b"\x12\x34\x56\x78\x9a\xbc\xde\xf0\x11\x22\x33\x44\x55\x66\x77\x88\x99\xaa\xbb\xcc"
+            )
+
+        try:
+            # Temporarily replace keccak for testing
+            turbo_sdk.client.keccak = mock_keccak
+
+            turbo = Turbo(ethereum_signer)
+            address = turbo._get_wallet_address()
+
+            # Should be 0x + 40 hex chars
+            assert address.startswith("0x")
+            assert len(address) == 42
+
+        finally:
+            # Restore original import if it existed
+            if original_import:
+                turbo_sdk.client.keccak = original_import
+
+    def test_get_wallet_address_arweave(self, arweave_signer):
+        """Test wallet address generation for Arweave"""
+        turbo = Turbo(arweave_signer)
+        address = turbo._get_wallet_address()
+
+        # Should be base64url encoded (no padding)
+        assert isinstance(address, str)
+        assert len(address) > 0
+        # Base64url chars only
+        import string
+
+        valid_chars = string.ascii_letters + string.digits + "-_"
+        assert all(c in valid_chars for c in address)
+
+    def test_service_urls_structure(self):
+        """Test SERVICE_URLS has correct structure"""
+        urls = Turbo.SERVICE_URLS
+
+        assert "mainnet" in urls
+        assert "testnet" in urls
+
+        for network, endpoints in urls.items():
+            assert "upload" in endpoints
+            assert "payment" in endpoints
+            assert endpoints["upload"].startswith("https://")
+            assert endpoints["payment"].startswith("https://")
+
+    def test_real_ethereum_signer_integration(self):
+        """Test integration with real EthereumSigner"""
+        # Use a test private key
+        test_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        signer = EthereumSigner(test_key)
+
+        turbo = Turbo(signer)
+
+        assert turbo.token == "ethereum"
+        assert turbo.signer == signer
+        assert turbo.network == "mainnet"
+
+    @patch("turbo_sdk.signers.arweave.rsa.RSAPrivateNumbers")
+    def test_real_arweave_signer_integration(self, mock_rsa_numbers):
+        """Test integration with real ArweaveSigner"""
+        # Mock RSA key creation
+        mock_private_key = Mock()
+        mock_rsa_instance = Mock()
+        mock_rsa_instance.private_key.return_value = mock_private_key
+        mock_rsa_numbers.return_value = mock_rsa_instance
+
+        import base64
+
+        test_arweave_jwk = {
+            "kty": "RSA",
+            "n": base64.urlsafe_b64encode(b"n" * 512).decode().rstrip("="),
+            "e": base64.urlsafe_b64encode(b"\x01\x00\x01").decode().rstrip("="),
+            "d": base64.urlsafe_b64encode(b"d" * 512).decode().rstrip("="),
+            "p": base64.urlsafe_b64encode(b"p" * 256).decode().rstrip("="),
+            "q": base64.urlsafe_b64encode(b"q" * 256).decode().rstrip("="),
+            "dp": base64.urlsafe_b64encode(b"dp" * 128).decode().rstrip("="),
+            "dq": base64.urlsafe_b64encode(b"dq" * 128).decode().rstrip("="),
+            "qi": base64.urlsafe_b64encode(b"qi" * 128).decode().rstrip("="),
+        }
+
+        signer = ArweaveSigner(test_arweave_jwk)
+        turbo = Turbo(signer, network="testnet")
+
+        assert turbo.token == "arweave"
+        assert turbo.signer == signer
+        assert turbo.network == "testnet"

@@ -1,0 +1,143 @@
+import requests
+from typing import List, Dict, Optional
+from .types import TurboUploadResponse, TurboBalanceResponse
+from .bundle import create_data, sign
+import base64
+
+
+class Turbo:
+    """Main Turbo client for uploading data and managing payments"""
+
+    SERVICE_URLS = {
+        "mainnet": {"upload": "https://upload.ardrive.io", "payment": "https://payment.ardrive.io"},
+        "testnet": {
+            "upload": "https://upload.ardrive.dev",
+            "payment": "https://payment.ardrive.dev",
+        },
+    }
+
+    # Map signature types to token names
+    TOKEN_MAP = {
+        1: "arweave",  # Arweave RSA-PSS
+        3: "ethereum",  # Ethereum ECDSA
+    }
+
+    def __init__(self, signer, network: str = "mainnet"):
+        """
+        Initialize Turbo client
+
+        Args:
+            signer: Signer instance (ArweaveSigner or EthereumSigner)
+            network: Network ("mainnet" or "testnet")
+        """
+        self.signer = signer
+        self.network = network
+        self.upload_url = self.SERVICE_URLS[network]["upload"]
+        self.payment_url = self.SERVICE_URLS[network]["payment"]
+
+        # Determine token type from signer using lookup
+        self.token = self.TOKEN_MAP.get(signer.signature_type)
+        if not self.token:
+            raise ValueError(f"Unsupported signer type: {signer.signature_type}")
+
+    def upload(
+        self, data: bytes, tags: Optional[List[Dict[str, str]]] = None, target: Optional[str] = None
+    ) -> TurboUploadResponse:
+        """
+        Upload data with automatic signing
+
+        Args:
+            data: Data to upload
+            tags: Optional metadata tags
+            target: Optional target address
+
+        Returns:
+            TurboUploadResponse with transaction details
+
+        Raises:
+            Exception: If upload fails
+        """
+
+        # Create and sign DataItem
+        data_item = create_data(bytearray(data), self.signer, tags, target)
+        sign(data_item, self.signer)
+
+        # Upload to Turbo endpoint
+        url = f"{self.upload_url}/tx/{self.token}"
+        headers = {"Content-Type": "application/octet-stream"}
+
+        response = requests.post(url, data=data_item.get_raw(), headers=headers)
+
+        if response.status_code == 200:
+            result = response.json()
+            return TurboUploadResponse(
+                id=result["id"],
+                owner=result["owner"],
+                data_caches=result.get("dataCaches", []),
+                fast_finality_indexes=result.get("fastFinalityIndexes", []),
+                winc=result.get("winc", "0"),
+            )
+        else:
+            raise Exception(f"Upload failed: {response.status_code} - {response.text}")
+
+    def get_balance(self, address: Optional[str] = None) -> TurboBalanceResponse:
+        """
+        Get winston credit balance
+
+        Args:
+            address: Address to check balance for (defaults to signer address)
+
+        Returns:
+            TurboBalanceResponse with balance details
+        """
+        addr = address or self._get_wallet_address()
+        url = f"{self.payment_url}/account/balance/{self.token}?address={addr}"
+
+        response = requests.get(url)
+        result = response.json()
+
+        return TurboBalanceResponse(
+            winc=result.get("winc", "0"),
+            controlled_winc=result.get("controlledWinc", "0"),
+            effective_balance=result.get("effectiveBalance", "0"),
+        )
+
+    def get_upload_price(self, byte_count: int) -> int:
+        """
+        Get upload cost in winston credits
+
+        Args:
+            byte_count: Number of bytes to upload
+
+        Returns:
+            Cost in winston credits
+        """
+        url = f"{self.payment_url}/price/{self.token}/{byte_count}"
+        response = requests.get(url)
+        result = response.json()
+        return int(result.get("winc", "0"))
+
+    def _get_wallet_address(self) -> str:
+        """Get wallet address from signer"""
+        address_handlers = {
+            "arweave": self._get_arweave_address,
+            "ethereum": self._get_ethereum_address,
+        }
+
+        handler = address_handlers.get(self.token)
+        if not handler:
+            raise ValueError(f"Unsupported token: {self.token}")
+
+        return handler()
+
+    def _get_arweave_address(self) -> str:
+        """Get Arweave address from public key"""
+        return base64.urlsafe_b64encode(self.signer.public_key).decode().rstrip("=")
+
+    def _get_ethereum_address(self) -> str:
+        """Get Ethereum address from public key"""
+        from eth_hash.auto import keccak
+
+        pubkey = self.signer.public_key[1:]  # Remove 0x04 prefix
+        kek = keccak(pubkey)
+        return "0x" + kek[-20:].hex()

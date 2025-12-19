@@ -1,30 +1,36 @@
 """
 Turbo SDK for Python
 
-Python SDK for interacting with the Ardrive Turbo Upload and Payment Service.
+A Python SDK for interacting with the Turbo datachain, supporting both
+Ethereum and Arweave signers for permanent data storage.
+
+Basic Usage:
+    from turbo_sdk import Turbo, EthereumSigner, ArweaveSigner
+
+    # For Ethereum
+    signer = EthereumSigner("0x...")
+    turbo = Turbo(signer, network="mainnet")
+
+    # For Arweave
+    signer = ArweaveSigner(jwk_dict)
+    turbo = Turbo(signer, network="mainnet")
+
+    # Upload data
+    result = turbo.upload(b"Hello World", tags=[
+        {"name": "Content-Type", "value": "text/plain"}
+    ])
 """
 
+from .client import Turbo
+from .types import TurboUploadResponse, TurboBalanceResponse
+from .signers import EthereumSigner, ArweaveSigner
+
 __version__ = "0.1.0"
-__all__ = ["TurboClient"]
 
-
-class TurboClient:
-    """
-    Main client for interacting with the Turbo service.
-    
-    This is a placeholder implementation. Full functionality will be added in future releases.
-    """
-    
-    def __init__(self, api_key: str = None, base_url: str = "https://turbo.ardrive.io"):
-        """
-        Initialize the Turbo client.
-        
-        Args:
-            api_key: Optional API key for authentication
-            base_url: Base URL for the Turbo service
-        """
-        self.api_key = api_key
-        self.base_url = base_url
-    
-    def __repr__(self) -> str:
-        return f"TurboClient(base_url='{self.base_url}')"
+__all__ = [
+    "Turbo",
+    "TurboUploadResponse",
+    "TurboBalanceResponse",
+    "EthereumSigner",
+    "ArweaveSigner",
+]

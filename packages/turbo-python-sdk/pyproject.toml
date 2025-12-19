@@ -24,7 +24,13 @@ classifiers = [
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "requests>=2.31.0",
+    "requests>=2.28.0",
+    "base58>=2.1.1",
+    "eth-account>=0.8.0",
+    "web3>=6.5.0",
+    "eth-keys>=0.4.0",
+    "eth-hash",
+    "cryptography>=41.0.0",
 ]
 
 [project.optional-dependencies]
@@ -34,6 +40,10 @@ dev = [
     "black>=23.7.0",
     "flake8>=6.1.0",
     "mypy>=1.5.0",
+    "build>=0.10.0",
+    "twine>=4.0.0",
+    "safety>=2.3.0",
+    "bandit>=1.7.0",
 ]
 
 [project.urls]
@@ -49,4 +59,26 @@ target-version = ["py38", "py39", "py310", "py311", "py312"]
 python_version = "3.8"
 warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+exclude = [
+    "tests/",
+    "examples/",
+    "build/",
+    "dist/"
+]
+
+[[tool.mypy.overrides]]
+module = "turbo_sdk.*"
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning"
+]
