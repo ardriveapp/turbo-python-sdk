@@ -70,7 +70,7 @@ class Turbo:
         address = self._get_wallet_address()
         
         # Create message to sign: nonce + address
-        message = f"{nonce}{address}".encode('utf-8')
+        message = f"{nonce}".encode('utf-8')
         
         # Sign the message
         signature = self.signer.sign(bytearray(message))
@@ -149,25 +149,37 @@ class Turbo:
             TurboBalanceResponse with balance details
         """
         # Use the /balance endpoint with signed headers
-        url = f"{self.payment_url}/balance"
+        url = f"{self.payment_url}/v1/balance"
         
-        if address:
-            # If address provided, use query parameter (no signature needed)
-            params = {"address": address}
-            response = requests.get(url, params=params)
-        else:
-            # Use signed headers for authenticated request
-            headers = self._create_signed_headers()
-            response = requests.get(url, headers=headers)
-        
-        response.raise_for_status()
-        result = response.json()
+        try:
+            if address:
+                # If address provided, use query parameter (no signature needed)
+                params = {"address": address}
+                response = requests.get(url, params=params)
+            else:
+                # Use signed headers for authenticated request
+                headers = self._create_signed_headers()
+                response = requests.get(url, headers=headers)
+            
+            response.raise_for_status()
+            result = response.json()
 
-        return TurboBalanceResponse(
-            winc=result.get("winc", "0"),
-            controlled_winc=result.get("controlledWinc", "0"),
-            effective_balance=result.get("effectiveBalance", "0"),
-        )
+            return TurboBalanceResponse(
+                winc=result.get("winc", "0"),
+                controlled_winc=result.get("controlledWinc", "0"),
+                effective_balance=result.get("effectiveBalance", "0"),
+            )
+        except requests.HTTPError as e:
+            if e.response.status_code == 404:
+                # Return zero balance for unfunded/unregistered wallets
+                return TurboBalanceResponse(
+                    winc="0",
+                    controlled_winc="0",
+                    effective_balance="0",
+                )
+            else:
+                # Re-raise other HTTP errors
+                raise
 
     def get_upload_price(self, byte_count: int) -> int:
         """
@@ -180,7 +192,10 @@ class Turbo:
             Cost in winston credits
         """
         url = f"{self.payment_url}/price/{self.token}/{byte_count}"
-        response = requests.get(url)
+        
+        # Add signed headers for authenticated request
+        headers = self._create_signed_headers()
+        response = requests.get(url, headers=headers)
         response.raise_for_status()
         result = response.json()
         

@@ -18,31 +18,28 @@ def main():
     print("🌐 Network:", turbo.network)
     print("🏦 Payment URL:", turbo.payment_url)
     
-    try:
-        # Get balance with signed request (authenticates as this wallet)
-        print("\n📊 Checking balance with signed request...")
-        balance = turbo.get_balance()
-        
-        print("✅ Balance retrieved successfully!")
-        print(f"💰 Available Credits: {balance.winc} winc")
-        print(f"🔒 Controlled Credits: {balance.controlled_winc} winc") 
-        print(f"⚡ Effective Balance: {balance.effective_balance} winc")
-        
-    except Exception as e:
-        print(f"❌ Balance check failed: {e}")
-        print("💡 This is expected if wallet has no credits or service is unreachable")
+    # Get balance with signed request (authenticates as this wallet)
+    print("\n📊 Checking balance with signed request...")
+    balance = turbo.get_balance()
+    
+    print("✅ Balance retrieved!")
+    print(f"💰 Available Credits: {balance.winc} winc")
+    print(f"🔒 Controlled Credits: {balance.controlled_winc} winc") 
+    print(f"⚡ Effective Balance: {balance.effective_balance} winc")
+    
+    if balance.winc == "0":
+        print("💡 Zero balance indicates an unfunded wallet")
 
-    try:
-        # Example: Check another wallet's balance (no auth needed)
-        other_address = "0x742d35Cc6635C0532925a3b8C17af2e95C5Aca4A"
-        print(f"\n📊 Checking balance for {other_address}...")
-        other_balance = turbo.get_balance(address=other_address)
-        
-        print("✅ Other balance retrieved successfully!")
-        print(f"💰 Available Credits: {other_balance.winc} winc")
-        
-    except Exception as e:
-        print(f"❌ Other balance check failed: {e}")
+    # Example: Check another wallet's balance (no auth needed)
+    other_address = "0x742d35Cc6635C0532925a3b8C17af2e95C5Aca4A"
+    print(f"\n📊 Checking balance for {other_address}...")
+    other_balance = turbo.get_balance(address=other_address)
+    
+    print("✅ Other balance retrieved!")
+    print(f"💰 Available Credits: {other_balance.winc} winc")
+    
+    if other_balance.winc == "0":
+        print("💡 This wallet also appears to be unfunded")
 
 
 if __name__ == "__main__":

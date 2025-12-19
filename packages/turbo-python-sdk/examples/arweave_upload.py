@@ -47,24 +47,24 @@ def main():
         print(f"⚠️ Could not fetch price: {e}")
 
     # Upload data
-    try:
-        result = turbo.upload(
-            data,
-            tags=[
-                {"name": "Content-Type", "value": "text/plain"},
-                {"name": "App-Name", "value": "Turbo-SDK-Python"},
-                {"name": "Source", "value": "Arweave"},
-            ]
-        )
+    # try:
+    #     result = turbo.upload(
+    #         data,
+    #         tags=[
+    #             {"name": "Content-Type", "value": "text/plain"},
+    #             {"name": "App-Name", "value": "Turbo-SDK-Python"},
+    #             {"name": "Source", "value": "Arweave"},
+    #         ]
+    #     )
 
-        print("✅ Upload successful!")
-        print(f"📄 Transaction ID: {result.id}")
-        print(f"🔗 URI: ar://{result.id}")
-        print(f"💸 Cost: {result.winc} winc")
-        print(f"🌐 Gateway URL: https://arweave.net/{result.id}")
+    #     print("✅ Upload successful!")
+    #     print(f"📄 Transaction ID: {result.id}")
+    #     print(f"🔗 URI: ar://{result.id}")
+    #     print(f"💸 Cost: {result.winc} winc")
+    #     print(f"🌐 Gateway URL: https://arweave.net/{result.id}")
 
-    except Exception as e:
-        print(f"❌ Upload failed: {e}")
+    # except Exception as e:
+    #     print(f"❌ Upload failed: {e}")
 
 
 if __name__ == "__main__":

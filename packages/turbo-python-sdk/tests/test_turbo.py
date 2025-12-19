@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import Mock, patch
+import requests
 from turbo_sdk import Turbo
 from turbo_sdk.signers.ethereum import EthereumSigner
 from turbo_sdk.signers.arweave import ArweaveSigner
@@ -224,3 +225,41 @@ class TestTurbo:
         address = turbo.get_wallet_address()
         assert isinstance(address, str)
         assert len(address) > 0
+
+    @patch('turbo_sdk.client.requests.get')
+    def test_get_balance_404_returns_zero(self, mock_get, ethereum_signer):
+        """Test that 404 errors return zero balance instead of raising"""
+        # Mock the signer's sign method
+        ethereum_signer.sign.return_value = bytearray(b"mock_signature")
+        
+        turbo = Turbo(ethereum_signer)
+        
+        # Mock 404 response
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_response.raise_for_status.side_effect = requests.HTTPError(response=mock_response)
+        mock_get.return_value = mock_response
+        
+        # Should return zero balance, not raise
+        balance = turbo.get_balance()
+        assert balance.winc == "0"
+        assert balance.controlled_winc == "0"
+        assert balance.effective_balance == "0"
+        
+    @patch('turbo_sdk.client.requests.get')
+    def test_get_balance_other_errors_raise(self, mock_get, ethereum_signer):
+        """Test that non-404 errors are still raised"""
+        # Mock the signer's sign method
+        ethereum_signer.sign.return_value = bytearray(b"mock_signature")
+        
+        turbo = Turbo(ethereum_signer)
+        
+        # Mock 500 response
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.raise_for_status.side_effect = requests.HTTPError(response=mock_response)
+        mock_get.return_value = mock_response
+        
+        # Should raise the error
+        with pytest.raises(requests.HTTPError):
+            turbo.get_balance()
