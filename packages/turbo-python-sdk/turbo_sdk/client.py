@@ -9,7 +9,10 @@ class Turbo:
     """Main Turbo client for uploading data and managing payments"""
 
     SERVICE_URLS = {
-        "mainnet": {"upload": "https://upload.ardrive.io", "payment": "https://payment.ardrive.io"},
+        "mainnet": {
+            "upload": "https://upload.ardrive.io", 
+            "payment": "https://payment.ardrive.io"
+        },
         "testnet": {
             "upload": "https://upload.ardrive.dev",
             "payment": "https://payment.ardrive.dev",
@@ -94,7 +97,7 @@ class Turbo:
         Returns:
             TurboBalanceResponse with balance details
         """
-        addr = address or self._get_wallet_address()
+        addr = address or self.signer.public_key
         url = f"{self.payment_url}/account/balance/{self.token}?address={addr}"
 
         response = requests.get(url)
@@ -137,28 +140,3 @@ class Turbo:
         else:
             # If result is a simple value, return it directly
             return int(result)
-
-    def _get_wallet_address(self) -> str:
-        """Get wallet address from signer"""
-        address_handlers = {
-            "arweave": self._get_arweave_address,
-            "ethereum": self._get_ethereum_address,
-        }
-
-        handler = address_handlers.get(self.token)
-        if not handler:
-            raise ValueError(f"Unsupported token: {self.token}")
-
-        return handler()
-
-    def _get_arweave_address(self) -> str:
-        """Get Arweave address from public key"""
-        return base64.urlsafe_b64encode(self.signer.public_key).decode().rstrip("=")
-
-    def _get_ethereum_address(self) -> str:
-        """Get Ethereum address from public key"""
-        from eth_hash.auto import keccak
-
-        pubkey = self.signer.public_key[1:]  # Remove 0x04 prefix
-        kek = keccak(pubkey)
-        return "0x" + kek[-20:].hex()
