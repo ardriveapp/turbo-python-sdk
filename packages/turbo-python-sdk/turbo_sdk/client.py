@@ -191,7 +191,7 @@ class Turbo:
         Returns:
             Cost in winston credits
         """
-        url = f"{self.payment_url}/price/{self.token}/{byte_count}"
+        url = f"{self.payment_url}/v1/price/{self.token}/{byte_count}"
         
         # Add signed headers for authenticated request
         headers = self._create_signed_headers()
