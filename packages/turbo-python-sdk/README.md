@@ -180,6 +180,10 @@ pytest
 
 That's it! The test suite includes comprehensive tests for all components without requiring network access.
 
+## Acknowledgments
+
+This package leverages implementation from the [Irys Python SDK](https://github.com/Irys-xyz/python-sdk) for ANS-104 DataItem format and cryptographic operations. Special thanks to the Irys team for their excellent work on permanent data storage standards.
+
 ## License
 
 MIT License - see [LICENSE](../../LICENSE) for details.

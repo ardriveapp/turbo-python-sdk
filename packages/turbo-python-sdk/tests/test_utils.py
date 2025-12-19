@@ -1,5 +1,5 @@
 import pytest
-from turbo_sdk.bundle.utils import set_bytes
+from turbo_sdk.bundle.utils import set_bytes, byte_array_to_long
 
 
 class TestUtils:
@@ -48,3 +48,41 @@ class TestUtils:
 
         expected = bytearray([1, 10, 20, 30, 5])
         assert target == expected
+
+    def test_byte_array_to_long(self):
+        """Test converting byte array to long using little-endian"""
+        # Test small number
+        data = bytearray([42, 0, 0, 0])
+        result = byte_array_to_long(data)
+        assert result == 42
+
+        # Test zero
+        data = bytearray([0, 0, 0, 0])
+        result = byte_array_to_long(data)
+        assert result == 0
+
+        # Test larger number (256 in little-endian)
+        data = bytearray([0, 1, 0, 0])
+        result = byte_array_to_long(data)
+        assert result == 256
+
+        # Test with 8 bytes
+        data = bytearray([255, 255, 255, 255, 0, 0, 0, 0])
+        result = byte_array_to_long(data)
+        assert result == 4294967295  # 2^32 - 1
+
+    def test_byte_array_to_long_single_byte(self):
+        """Test with single byte"""
+        data = bytearray([123])
+        result = byte_array_to_long(data)
+        assert result == 123
+
+    def test_byte_array_to_long_two_bytes(self):
+        """Test with two bytes (little-endian)"""
+        data = bytearray([0, 1])  # 256 in little-endian
+        result = byte_array_to_long(data)
+        assert result == 256
+        
+        data = bytearray([1, 1])  # 257 in little-endian
+        result = byte_array_to_long(data)
+        assert result == 257

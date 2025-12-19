@@ -48,7 +48,14 @@ def main():
 
     # Upload data
     try:
-        result = turbo.upload(data)
+        result = turbo.upload(
+            data,
+            tags=[
+                {"name": "Content-Type", "value": "text/plain"},
+                {"name": "App-Name", "value": "Turbo-SDK-Python"},
+                {"name": "Source", "value": "Arweave"},
+            ]
+        )
 
         print("✅ Upload successful!")
         print(f"📄 Transaction ID: {result.id}")

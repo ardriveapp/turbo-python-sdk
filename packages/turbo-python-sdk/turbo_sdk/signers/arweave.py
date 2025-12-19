@@ -1,12 +1,15 @@
+from turbo_sdk.signers.signer import Signer
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 import base64
 
 
-class ArweaveSigner:
+class ArweaveSigner(Signer):
     signature_type = 1
     signature_length = 512
     owner_length = 512
+    public_key = None
+    private_key = None
 
     def __init__(self, jwk: dict):
         """

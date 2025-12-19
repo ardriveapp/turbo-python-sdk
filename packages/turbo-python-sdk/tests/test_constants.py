@@ -50,4 +50,4 @@ class TestConstants:
         """Test MIN_BINARY_SIZE constant"""
         assert isinstance(MIN_BINARY_SIZE, int)
         assert MIN_BINARY_SIZE > 0
-        assert MIN_BINARY_SIZE == 32
+        assert MIN_BINARY_SIZE == 80
