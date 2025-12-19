@@ -99,11 +99,16 @@ class TurboUploadResponse:
 
 ##### `get_balance(address=None) -> TurboBalanceResponse`
 
-Get winston credit balance for an address.
+Get winston credit balance. Uses signed request for authenticated balance check when no address specified.
 
 ```python
+# Check your own balance (signed request)
 balance = turbo.get_balance()
 print(f"Balance: {balance.winc} winc")
+
+# Check another address (no signature needed)
+other_balance = turbo.get_balance("0x742d35Cc6635C0532925a3b8C17af2e95C5Aca4A")
+print(f"Other balance: {other_balance.winc} winc")
 ```
 
 **Returns:** `TurboBalanceResponse`
@@ -122,6 +127,15 @@ Get the cost to upload data of a specific size.
 ```python
 cost = turbo.get_upload_price(1024)  # Cost for 1KB
 print(f"Upload cost: {cost} winc")
+```
+
+##### `get_wallet_address() -> str`
+
+Get the wallet address for the current signer.
+
+```python
+address = turbo.get_wallet_address()
+print(f"Wallet address: {address}")
 ```
 
 ### Signers

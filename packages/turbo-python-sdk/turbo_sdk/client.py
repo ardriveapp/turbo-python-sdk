@@ -3,6 +3,9 @@ from typing import List, Dict, Optional
 from .types import TurboUploadResponse, TurboBalanceResponse
 from .bundle import create_data, sign
 import base64
+import hashlib
+import secrets
+from eth_keys import keys
 
 
 class Turbo:
@@ -42,6 +45,54 @@ class Turbo:
         self.token = self.TOKEN_MAP.get(signer.signature_type)
         if not self.token:
             raise ValueError(f"Unsupported signer type: {signer.signature_type}")
+
+    def _get_wallet_address(self) -> str:
+        """Get the wallet address from the signer"""
+        if self.signer.signature_type == 1:  # Arweave
+            # Address is base64url-encoded SHA-256 hash of the RSA modulus
+            address_hash = hashlib.sha256(self.signer.public_key).digest()
+            return base64.urlsafe_b64encode(address_hash).decode().rstrip('=')
+        elif self.signer.signature_type == 3:  # Ethereum
+            # Address is the last 20 bytes of the keccak256 hash of the public key
+            # Remove the 0x04 prefix from uncompressed public key
+            public_key_bytes = self.signer.public_key[1:]  # Remove 0x04 prefix
+            address_hash = keys.PublicKey(public_key_bytes).to_checksum_address()
+            return address_hash
+        else:
+            raise ValueError(f"Unsupported signer type for address: {self.signer.signature_type}")
+
+    def _create_signed_headers(self) -> Dict[str, str]:
+        """Create signed headers for authenticated API requests"""
+        # Generate a random nonce
+        nonce = secrets.token_hex(16)
+        
+        # Get wallet address
+        address = self._get_wallet_address()
+        
+        # Create message to sign: nonce + address
+        message = f"{nonce}{address}".encode('utf-8')
+        
+        # Sign the message
+        signature = self.signer.sign(bytearray(message))
+        
+        # Base64 encode signature and public key
+        signature_b64 = base64.b64encode(signature).decode('utf-8')
+        public_key_b64 = base64.b64encode(self.signer.public_key).decode('utf-8')
+        
+        return {
+            'x-signature': signature_b64,
+            'x-nonce': nonce,
+            'x-public-key': public_key_b64
+        }
+
+    def get_wallet_address(self) -> str:
+        """
+        Get the wallet address for this signer
+
+        Returns:
+            The wallet address as a string
+        """
+        return self._get_wallet_address()
 
     def upload(
         self, data: bytes, tags: Optional[List[Dict[str, str]]] = None, target: Optional[str] = None
@@ -89,7 +140,7 @@ class Turbo:
 
     def get_balance(self, address: Optional[str] = None) -> TurboBalanceResponse:
         """
-        Get winston credit balance
+        Get winston credit balance using signed request
 
         Args:
             address: Address to check balance for (defaults to signer address)
@@ -97,27 +148,26 @@ class Turbo:
         Returns:
             TurboBalanceResponse with balance details
         """
-        addr = address or self.signer.public_key
-        url = f"{self.payment_url}/account/balance/{self.token}?address={addr}"
-
-        response = requests.get(url)
+        # Use the /balance endpoint with signed headers
+        url = f"{self.payment_url}/balance"
+        
+        if address:
+            # If address provided, use query parameter (no signature needed)
+            params = {"address": address}
+            response = requests.get(url, params=params)
+        else:
+            # Use signed headers for authenticated request
+            headers = self._create_signed_headers()
+            response = requests.get(url, headers=headers)
+        
         response.raise_for_status()
         result = response.json()
 
-        # Handle different response formats
-        if isinstance(result, dict):
-            return TurboBalanceResponse(
-                winc=result.get("winc", "0"),
-                controlled_winc=result.get("controlledWinc", "0"),
-                effective_balance=result.get("effectiveBalance", "0"),
-            )
-        else:
-            # If result is a simple value, treat as winc balance
-            return TurboBalanceResponse(
-                winc=str(result),
-                controlled_winc="0",
-                effective_balance=str(result),
-            )
+        return TurboBalanceResponse(
+            winc=result.get("winc", "0"),
+            controlled_winc=result.get("controlledWinc", "0"),
+            effective_balance=result.get("effectiveBalance", "0"),
+        )
 
     def get_upload_price(self, byte_count: int) -> int:
         """

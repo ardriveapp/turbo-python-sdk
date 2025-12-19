@@ -181,3 +181,46 @@ class TestTurbo:
         assert turbo.token == "arweave"
         assert turbo.signer == signer
         assert turbo.network == "testnet"
+
+    def test_create_signed_headers(self, ethereum_signer):
+        """Test creation of signed headers for API requests"""
+        # Mock the sign method
+        ethereum_signer.sign.return_value = bytearray(b"mock_signature" + b"0" * 50)
+        
+        turbo = Turbo(ethereum_signer)
+        headers = turbo._create_signed_headers()
+        
+        # Check headers exist
+        assert "x-signature" in headers
+        assert "x-nonce" in headers  
+        assert "x-public-key" in headers
+        
+        # Check values are base64 encoded strings
+        import base64
+        assert isinstance(headers["x-signature"], str)
+        assert isinstance(headers["x-nonce"], str)
+        assert isinstance(headers["x-public-key"], str)
+        
+        # Verify signature was called
+        ethereum_signer.sign.assert_called_once()
+        
+        # Verify nonce is hex string
+        nonce = headers["x-nonce"]
+        assert len(nonce) == 32  # 16 bytes as hex = 32 chars
+        assert all(c in "0123456789abcdef" for c in nonce)
+        
+        # Verify we can decode the base64 values
+        try:
+            base64.b64decode(headers["x-signature"])
+            base64.b64decode(headers["x-public-key"])
+        except Exception:
+            pytest.fail("Headers should contain valid base64 data")
+
+    def test_get_wallet_address_public_method(self, ethereum_signer):
+        """Test public get_wallet_address method"""
+        turbo = Turbo(ethereum_signer)
+        
+        # Should not raise an error and return a string
+        address = turbo.get_wallet_address()
+        assert isinstance(address, str)
+        assert len(address) > 0
