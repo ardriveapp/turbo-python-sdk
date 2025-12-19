@@ -64,9 +64,13 @@ class Turbo:
 
         # Upload to Turbo endpoint
         url = f"{self.upload_url}/tx/{self.token}"
-        headers = {"Content-Type": "application/octet-stream"}
+        raw_data = data_item.get_raw()
+        headers = {
+            "Content-Type": "application/octet-stream",
+            "Content-Length": str(len(raw_data))
+        }
 
-        response = requests.post(url, data=data_item.get_raw(), headers=headers)
+        response = requests.post(url, data=raw_data, headers=headers)
 
         if response.status_code == 200:
             result = response.json()
@@ -94,13 +98,23 @@ class Turbo:
         url = f"{self.payment_url}/account/balance/{self.token}?address={addr}"
 
         response = requests.get(url)
+        response.raise_for_status()
         result = response.json()
 
-        return TurboBalanceResponse(
-            winc=result.get("winc", "0"),
-            controlled_winc=result.get("controlledWinc", "0"),
-            effective_balance=result.get("effectiveBalance", "0"),
-        )
+        # Handle different response formats
+        if isinstance(result, dict):
+            return TurboBalanceResponse(
+                winc=result.get("winc", "0"),
+                controlled_winc=result.get("controlledWinc", "0"),
+                effective_balance=result.get("effectiveBalance", "0"),
+            )
+        else:
+            # If result is a simple value, treat as winc balance
+            return TurboBalanceResponse(
+                winc=str(result),
+                controlled_winc="0",
+                effective_balance=str(result),
+            )
 
     def get_upload_price(self, byte_count: int) -> int:
         """
@@ -114,8 +128,15 @@ class Turbo:
         """
         url = f"{self.payment_url}/price/{self.token}/{byte_count}"
         response = requests.get(url)
+        response.raise_for_status()
         result = response.json()
-        return int(result.get("winc", "0"))
+        
+        # Handle different response formats
+        if isinstance(result, dict):
+            return int(result.get("winc", "0"))
+        else:
+            # If result is a simple value, return it directly
+            return int(result)
 
     def _get_wallet_address(self) -> str:
         """Get wallet address from signer"""

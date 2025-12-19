@@ -52,18 +52,17 @@ def get_signature_data(dataitem: DataItem) -> bytearray:
     Returns:
         The data to be signed as bytearray
     """
-    # Build the signature data by concatenating relevant fields
-    signature_data = []
-
-    # Add each component for deep hashing
-    signature_data.append(b"dataitem")
-    signature_data.append(b"1")  # Version
-    signature_data.append(dataitem.signature_type.to_bytes(2, "little"))
-    signature_data.append(dataitem.owner)
-    signature_data.append(dataitem.target)
-    signature_data.append(dataitem.anchor)
-    signature_data.append(dataitem.tags)
-    signature_data.append(dataitem.data)
+    # Build the signature data array for ANS-104 standard
+    signature_data = [
+        b"dataitem",
+        b"1",  # Version
+        dataitem.signature_type.to_bytes(2, "little"),
+        dataitem.owner,
+        dataitem.target if any(b != 0 for b in dataitem.target) else b"",
+        dataitem.anchor if any(b != 0 for b in dataitem.anchor) else b"", 
+        dataitem.tags,
+        dataitem.data,
+    ]
 
     # Create deep hash of all components
     return deep_hash(signature_data)

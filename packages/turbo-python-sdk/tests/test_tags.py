@@ -8,19 +8,19 @@ class TestTags:
     def test_encode_empty_tags(self):
         """Test encoding empty tag list"""
         result = encode_tags([])
-        assert len(result) == 16  # 8 bytes for count + 8 bytes for total length
+        assert len(result) == 1  # Single 0x00 byte for empty array
 
-        # Should be all zeros (0 tags, 0 total length)
-        expected = bytearray(16)
+        # Should be single zero byte (Avro empty array)
+        expected = bytearray([0x00])
         assert result == expected
 
     def test_encode_none_tags(self):
         """Test encoding None tags"""
         result = encode_tags(None)
-        assert len(result) == 16
+        assert len(result) == 1
 
-        # Should be same as empty tags
-        expected = bytearray(16)
+        # Should be same as empty tags (Avro empty array)
+        expected = bytearray([0x00])
         assert result == expected
 
     def test_encode_single_tag(self):
@@ -28,19 +28,14 @@ class TestTags:
         tags = [{"name": "Content-Type", "value": "text/plain"}]
         result = encode_tags(tags)
 
-        # Should have proper structure
-        assert len(result) >= 16  # Header + tag data
-
-        # First 8 bytes should be tag count (1)
-        tag_count = int.from_bytes(result[0:8], "little")
-        assert tag_count == 1
-
-        # Next 8 bytes should be total data length
-        total_length = int.from_bytes(result[8:16], "little")
-        assert total_length > 0
-
-        # Total result length should be 16 + total_length
-        assert len(result) == 16 + total_length
+        # Should be Avro-encoded with reasonable length
+        assert len(result) > 1  # More than just empty array marker
+        
+        # Verify by decoding
+        decoded = decode_tags(result)
+        assert len(decoded) == 1
+        assert decoded[0]["name"] == "Content-Type"
+        assert decoded[0]["value"] == "text/plain"
 
     def test_encode_multiple_tags(self):
         """Test encoding multiple tags"""
@@ -51,26 +46,26 @@ class TestTags:
         ]
         result = encode_tags(tags)
 
-        # Check tag count
-        tag_count = int.from_bytes(result[0:8], "little")
-        assert tag_count == 3
-
-        # Check total length is positive
-        total_length = int.from_bytes(result[8:16], "little")
-        assert total_length > 0
+        # Should be Avro-encoded with reasonable length
+        assert len(result) > 1  # More than just empty array marker
+        
+        # Verify by decoding
+        decoded = decode_tags(result)
+        assert len(decoded) == 3
+        assert decoded == tags
 
     def test_decode_empty_tags(self):
         """Test decoding empty tags"""
-        # Create empty tag data
-        empty_data = bytearray(16)  # 0 count, 0 length
+        # Create empty tag data (Avro empty array)
+        empty_data = bytearray([0x00])
         result = decode_tags(empty_data)
 
         assert result == []
 
     def test_decode_insufficient_data(self):
         """Test decoding with insufficient data"""
-        # Less than 16 bytes
-        short_data = bytearray(8)
+        # Empty bytearray
+        short_data = bytearray()
         result = decode_tags(short_data)
 
         assert result == []

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Example: Upload data using Arweave JWK wallet
+Example: Upload data using Arweave JWK wallet to local turbo service
 """
 from turbo_sdk import Turbo, ArweaveSigner
 import json
@@ -20,41 +20,39 @@ def main():
         print("❌ Invalid JSON in test-wallet.json")
         sys.exit(1)
 
-    # Create signer and Turbo client
+    # Create signer and Turbo client pointing to local service
     try:
         signer = ArweaveSigner(arweave_jwk)
-        turbo = Turbo(signer, network="mainnet")
-        print("🔑 Connected with Arweave signer")
+        turbo = Turbo(signer, network="testnet")
+        # Override URLs to point to local service
+        turbo.upload_url = "http://localhost:3000"
+        turbo.payment_url = "http://localhost:3000"
+        print("🔑 Connected with Arweave signer (local service)")
     except Exception as e:
         print(f"❌ Failed to create Turbo client: {e}")
         sys.exit(1)
 
-    # Check balance
-    try:
-        balance = turbo.get_balance()
-        print(f"💰 Balance: {balance.winc} winc")
-    except Exception as e:
-        print(f"⚠️ Could not fetch balance: {e}")
+    # Prepare data to upload
+    data = b"Hello, Local Turbo!"
 
-    # Prepare minimal data to upload
-    data = b"test"
-
-    # Get upload cost
-    try:
-        cost = turbo.get_upload_price(len(data))
-        print(f"💸 Upload cost: {cost} winc")
-    except Exception as e:
-        print(f"⚠️ Could not fetch price: {e}")
+    print(f"📝 Data to upload: {data}")
+    print(f"📊 Data size: {len(data)} bytes")
 
     # Upload data
     try:
-        result = turbo.upload(data)
+        result = turbo.upload(
+            data,
+            tags=[
+                {"name": "Content-Type", "value": "text/plain"},
+                {"name": "App-Name", "value": "Turbo-SDK-Python-Local"},
+                {"name": "Source", "value": "Arweave-Local"},
+            ],
+        )
 
         print("✅ Upload successful!")
         print(f"📄 Transaction ID: {result.id}")
         print(f"🔗 URI: ar://{result.id}")
         print(f"💸 Cost: {result.winc} winc")
-        print(f"🌐 Gateway URL: https://arweave.net/{result.id}")
 
     except Exception as e:
         print(f"❌ Upload failed: {e}")

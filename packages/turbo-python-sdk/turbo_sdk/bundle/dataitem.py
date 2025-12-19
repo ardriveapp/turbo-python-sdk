@@ -1,6 +1,5 @@
 import struct
 from .constants import SIG_CONFIG
-from .utils import long_to_8_byte_array
 
 
 class DataItem:
@@ -46,10 +45,24 @@ class DataItem:
         if has_anchor:
             result.extend(self.anchor)
 
-        # Number of tags (8 bytes)
-        result.extend(long_to_8_byte_array(len(self.tags)))
-
-        # Tags data
+        # Tags section - ANS-104 requires number of tags and byte length
+        # Count the actual number of tags by decoding Avro data
+        tag_count = 0
+        if self.tags and len(self.tags) > 1:  # More than just empty array marker
+            from .tags import decode_tags
+            try:
+                decoded_tags = decode_tags(self.tags)
+                tag_count = len(decoded_tags)
+            except:
+                tag_count = 0
+        
+        # Number of tags (8 bytes, little-endian)
+        result.extend(struct.pack("<Q", tag_count))
+        
+        # Tag bytes length (8 bytes, little-endian)
+        result.extend(struct.pack("<Q", len(self.tags)))
+        
+        # Tags data (Avro-encoded)
         result.extend(self.tags)
 
         # Data

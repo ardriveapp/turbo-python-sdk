@@ -3,7 +3,7 @@ from .dataitem import DataItem
 from .create import create_data
 from .sign import sign, deep_hash, get_signature_data
 from .tags import encode_tags, decode_tags
-from .utils import long_to_8_byte_array, set_bytes, byte_array_to_long
+from .utils import set_bytes
 
 __all__ = [
     "SIG_CONFIG",
@@ -16,7 +16,5 @@ __all__ = [
     "get_signature_data",
     "encode_tags",
     "decode_tags",
-    "long_to_8_byte_array",
     "set_bytes",
-    "byte_array_to_long",
 ]
