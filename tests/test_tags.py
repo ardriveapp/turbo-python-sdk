@@ -30,7 +30,7 @@ class TestTags:
 
         # Should be Avro-encoded with reasonable length
         assert len(result) > 1  # More than just empty array marker
-        
+
         # Verify by decoding
         decoded = decode_tags(result)
         assert len(decoded) == 1
@@ -48,7 +48,7 @@ class TestTags:
 
         # Should be Avro-encoded with reasonable length
         assert len(result) > 1  # More than just empty array marker
-        
+
         # Verify by decoding
         decoded = decode_tags(result)
         assert len(decoded) == 3

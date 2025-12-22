@@ -54,7 +54,7 @@ def main():
                 {"name": "Content-Type", "value": "text/plain"},
                 {"name": "App-Name", "value": "Turbo-SDK-Python"},
                 {"name": "Source", "value": "Arweave"},
-            ]
+            ],
         )
 
         print("✅ Upload successful!")

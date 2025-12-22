@@ -10,7 +10,7 @@ def deep_hash(data) -> bytearray:
         return deep_hash_chunks(data, hashlib.sha384(tag).digest())
     else:
         if isinstance(data, str):
-            data = data.encode('utf-8')
+            data = data.encode("utf-8")
         tag = b"blob" + str(len(data)).encode()
         tagged_hash = hashlib.sha384(tag).digest() + hashlib.sha384(data).digest()
         return hashlib.sha384(tagged_hash).digest()
@@ -34,7 +34,7 @@ def get_signature_data(dataitem) -> bytearray:
     """
     signature_data = [
         "dataitem",  # String, will be encoded to UTF-8 by deep_hash
-        "1",         # Version as string
+        "1",  # Version as string
         str(dataitem.signature_type),  # Signature type as string (KEY FIX!)
         dataitem.raw_owner,
         dataitem.raw_target,
@@ -42,7 +42,7 @@ def get_signature_data(dataitem) -> bytearray:
         dataitem.raw_tags,
         dataitem.raw_data,
     ]
-    
+
     return deep_hash(signature_data)
 
 

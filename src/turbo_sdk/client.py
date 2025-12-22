@@ -12,10 +12,7 @@ class Turbo:
     """Main Turbo client for uploading data and managing payments"""
 
     SERVICE_URLS = {
-        "mainnet": {
-            "upload": "https://upload.ardrive.io", 
-            "payment": "https://payment.ardrive.io"
-        },
+        "mainnet": {"upload": "https://upload.ardrive.io", "payment": "https://payment.ardrive.io"},
         "testnet": {
             "upload": "https://upload.ardrive.dev",
             "payment": "https://payment.ardrive.dev",
@@ -51,7 +48,7 @@ class Turbo:
         if self.signer.signature_type == 1:  # Arweave
             # Address is base64url-encoded SHA-256 hash of the RSA modulus
             address_hash = hashlib.sha256(self.signer.public_key).digest()
-            return base64.urlsafe_b64encode(address_hash).decode().rstrip('=')
+            return base64.urlsafe_b64encode(address_hash).decode().rstrip("=")
         elif self.signer.signature_type == 3:  # Ethereum
             # Address is the last 20 bytes of the keccak256 hash of the public key
             # Remove the 0x04 prefix from uncompressed public key
@@ -65,25 +62,21 @@ class Turbo:
         """Create signed headers for authenticated API requests"""
         # Generate a random nonce
         nonce = secrets.token_hex(16)
-        
+
         # Get wallet address
         address = self._get_wallet_address()
-        
+
         # Create message to sign: nonce + address
-        message = f"{nonce}".encode('utf-8')
-        
+        message = f"{nonce}".encode("utf-8")
+
         # Sign the message
         signature = self.signer.sign(bytearray(message))
-        
+
         # Base64 encode signature and public key
-        signature_b64 = base64.b64encode(signature).decode('utf-8')
-        public_key_b64 = base64.b64encode(self.signer.public_key).decode('utf-8')
-        
-        return {
-            'x-signature': signature_b64,
-            'x-nonce': nonce,
-            'x-public-key': public_key_b64
-        }
+        signature_b64 = base64.b64encode(signature).decode("utf-8")
+        public_key_b64 = base64.b64encode(self.signer.public_key).decode("utf-8")
+
+        return {"x-signature": signature_b64, "x-nonce": nonce, "x-public-key": public_key_b64}
 
     def get_wallet_address(self) -> str:
         """
@@ -119,10 +112,7 @@ class Turbo:
         # Upload to Turbo endpoint
         url = f"{self.upload_url}/tx/{self.token}"
         raw_data = data_item.get_raw()
-        headers = {
-            "Content-Type": "application/octet-stream",
-            "Content-Length": str(len(raw_data))
-        }
+        headers = {"Content-Type": "application/octet-stream", "Content-Length": str(len(raw_data))}
 
         response = requests.post(url, data=raw_data, headers=headers)
 
@@ -150,7 +140,7 @@ class Turbo:
         """
         # Use the /balance endpoint with signed headers
         url = f"{self.payment_url}/v1/balance"
-        
+
         try:
             if address:
                 # If address provided, use query parameter (no signature needed)
@@ -160,7 +150,7 @@ class Turbo:
                 # Use signed headers for authenticated request
                 headers = self._create_signed_headers()
                 response = requests.get(url, headers=headers)
-            
+
             response.raise_for_status()
             result = response.json()
 
@@ -192,13 +182,13 @@ class Turbo:
             Cost in winston credits
         """
         url = f"{self.payment_url}/v1/price/{self.token}/{byte_count}"
-        
+
         # Add signed headers for authenticated request
         headers = self._create_signed_headers()
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         result = response.json()
-        
+
         # Handle different response formats
         if isinstance(result, dict):
             return int(result.get("winc", "0"))

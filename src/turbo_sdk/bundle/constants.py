@@ -5,7 +5,7 @@ SIG_CONFIG = {
     4: {"sigLength": 64, "pubLength": 32, "sigName": "solana"},
     5: {"sigLength": 64, "pubLength": 32, "sigName": "injectedAptos"},
     6: {"sigLength": 64 * 32 + 4, "pubLength": 32 * 32 + 1, "sigName": "multiAptos"},
-    7: {"sigLength": 65, "pubLength": 42, "sigName": "typedEthereum"}
+    7: {"sigLength": 65, "pubLength": 42, "sigName": "typedEthereum"},
 }
 
 MAX_TAG_BYTES = 4096

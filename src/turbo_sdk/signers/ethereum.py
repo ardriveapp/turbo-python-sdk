@@ -12,8 +12,8 @@ class EthereumSigner(Signer):
     public_key = None
     private_key = None
     signature_type = 3
-    signature_length = SIG_CONFIG[3]['sigLength']
-    owner_length = SIG_CONFIG[3]['pubLength']
+    signature_length = SIG_CONFIG[3]["sigLength"]
+    owner_length = SIG_CONFIG[3]["pubLength"]
 
     def __init__(self, private_key: str):
         """
@@ -47,8 +47,7 @@ class EthereumSigner(Signer):
         msg = encode_defunct(primitive=message)
         msg_hash = _hash_eip191_message(msg)
         # trim pubkey
-        pubkey = keys.PublicKey(
-            pubkey if len(pubkey) == 64 else pubkey[1:])
+        pubkey = keys.PublicKey(pubkey if len(pubkey) == 64 else pubkey[1:])
         # standardize v value
         signature[64] = to_standard_v(signature[64])
         signature = keys.Signature(signature)

@@ -29,9 +29,8 @@ class DataItem:
     def signature_type(self) -> int:
         sig_type_int = byte_array_to_long(self.binary[0:2])
         sig_config = SIG_CONFIG.get(sig_type_int)
-        if (sig_config == None):
-            raise Exception(
-                "invalid signature type {}".format(sig_type_int))
+        if sig_config == None:
+            raise Exception("invalid signature type {}".format(sig_type_int))
         return sig_type_int
 
     def is_valid(self) -> bool:
@@ -44,15 +43,14 @@ class DataItem:
         item = DataItem(bytes)
         sig_type = item.signature_type
         tags_start = item.get_tags_start()
-        number_of_tags = byte_array_to_long(bytes[tags_start: tags_start + 8])
-        number_of_tags_byte_array = bytes[tags_start + 8: tags_start + 16]
+        number_of_tags = byte_array_to_long(bytes[tags_start : tags_start + 8])
+        number_of_tags_byte_array = bytes[tags_start + 8 : tags_start + 16]
         number_of_tag_bytes = byte_array_to_long(number_of_tags_byte_array)
         if number_of_tag_bytes > MAX_TAG_BYTES:
             return False
         if number_of_tags > 0:
             try:
-                tags = decode_tags(
-                    bytes[tags_start + 16: tags_start+16 + number_of_tag_bytes])
+                tags = decode_tags(bytes[tags_start + 16 : tags_start + 16 + number_of_tag_bytes])
                 if len(tags) != number_of_tags:
                     return False
             except:
@@ -65,7 +63,7 @@ class DataItem:
 
     @property
     def id(self) -> str:
-        return b58encode(self.raw_id).decode('utf-8')
+        return b58encode(self.raw_id).decode("utf-8")
 
     @property
     def raw_id(self) -> bytes:
@@ -73,7 +71,7 @@ class DataItem:
 
     @property
     def raw_signature(self):
-        return self.binary[2:2+self.signature_length]
+        return self.binary[2 : 2 + self.signature_length]
 
     @property
     def signature(self) -> bytearray:
@@ -81,11 +79,13 @@ class DataItem:
 
     @property
     def raw_owner(self) -> bytearray:
-        return self.binary[2+self.signature_length:2+self.signature_length + self.owner_length]
+        return self.binary[
+            2 + self.signature_length : 2 + self.signature_length + self.owner_length
+        ]
 
     @property
     def signature_length(self) -> int:
-        return SIG_CONFIG[self.signature_type]['sigLength']
+        return SIG_CONFIG[self.signature_type]["sigLength"]
 
     @property
     def owner(self) -> bytes:
@@ -93,25 +93,25 @@ class DataItem:
 
     @property
     def owner_length(self) -> int:
-        return SIG_CONFIG[self.signature_type]['pubLength']
+        return SIG_CONFIG[self.signature_type]["pubLength"]
 
     @property
     def raw_target(self) -> bytearray:
         target_start = self.get_target_start()
         target_present = self.binary[target_start] == 1
-        return self.binary[target_start + 1: target_start + 33] if target_present else bytearray()
+        return self.binary[target_start + 1 : target_start + 33] if target_present else bytearray()
 
     @property
     def raw_anchor(self) -> bytearray:
         anchor_start = self.get_anchor_start()
         anchor_present = self.binary[anchor_start] == 1
-        return self.binary[anchor_start + 1: anchor_start + 33] if anchor_present else bytearray()
+        return self.binary[anchor_start + 1 : anchor_start + 33] if anchor_present else bytearray()
 
     @property
     def raw_tags(self) -> bytearray:
         tags_start = self.get_tags_start()
         tags_size = self.get_tags_size()
-        return self.binary[tags_start+16:tags_start+16+tags_size]
+        return self.binary[tags_start + 16 : tags_start + 16 + tags_size]
 
     @property
     def tags(self):
@@ -132,17 +132,18 @@ class DataItem:
 
     def get_tags_count(self) -> int:
         tags_start = self.get_tags_start()
-        return byte_array_to_long(self.binary[tags_start:tags_start+8])
+        return byte_array_to_long(self.binary[tags_start : tags_start + 8])
 
     def get_tags_size(self) -> int:
         tags_start = self.get_tags_start()
-        return byte_array_to_long(self.binary[tags_start+8:tags_start+16])
+        return byte_array_to_long(self.binary[tags_start + 8 : tags_start + 16])
 
     def get_raw(self) -> bytearray:
         return self.binary
 
     def sign(self, signer: "Signer") -> bytearray:
         from .sign import sign
+
         self._id = sign(self, signer)
         return self.raw_id
 
@@ -155,7 +156,7 @@ class DataItem:
         target_present = self.binary[target_start] == 1
         tags_start = target_start + (33 if target_present else 1)
         anchor_present = self.binary[tags_start] == 1
-        tags_start += (33 if anchor_present else 1)
+        tags_start += 33 if anchor_present else 1
         return tags_start
 
     def get_target_start(self) -> int:

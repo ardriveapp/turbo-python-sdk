@@ -2,7 +2,7 @@ from abc import abstractmethod
 from typing import Any
 
 
-class Signer():
+class Signer:
 
     @property
     @abstractmethod

@@ -82,7 +82,7 @@ class TestUtils:
         data = bytearray([0, 1])  # 256 in little-endian
         result = byte_array_to_long(data)
         assert result == 256
-        
+
         data = bytearray([1, 1])  # 257 in little-endian
         result = byte_array_to_long(data)
         assert result == 257
