@@ -46,9 +46,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ardriveapp/turbo"
-Repository = "https://github.com/ardriveapp/turbo"
-Documentation = "https://github.com/ardriveapp/turbo/tree/main/packages/turbo-python-sdk"
+Homepage = "https://github.com/ardriveapp/turbo-python-sdk"
+Repository = "https://github.com/ardriveapp/turbo-python-sdk"
+Documentation = "https://github.com/ardriveapp/turbo-python-sdk#readme"
 
 [tool.setuptools.packages.find]
 where = ["src"]
