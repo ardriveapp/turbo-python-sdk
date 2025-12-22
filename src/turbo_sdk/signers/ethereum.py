@@ -1,10 +1,10 @@
 import codecs
+from typing import Any
 from turbo_sdk.signers.signer import Signer
 from turbo_sdk.bundle.constants import SIG_CONFIG
 from eth_account import Account
 from eth_account.messages import encode_defunct, _hash_eip191_message
 from eth_account._utils.signing import to_standard_v
-from eth_keys import keys
 from eth_keys import keys
 
 
@@ -14,14 +14,6 @@ class EthereumSigner(Signer):
     signature_type = 3
     signature_length = SIG_CONFIG[3]['sigLength']
     owner_length = SIG_CONFIG[3]['pubLength']
-
-    def __init__(self, private_key: str):
-        private_key = private_key[2:] if private_key.startswith(
-            "0x") else private_key
-        dec = codecs.decode(private_key, "hex")
-        self.private_key = keys.PrivateKey(dec)
-        self.public_key = b'\x04' + \
-            self.private_key.public_key.to_bytes()
 
     def __init__(self, private_key: str):
         """
