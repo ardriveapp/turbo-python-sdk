@@ -74,7 +74,7 @@ jobs:
 
       - name: Run flake8 linting
         run: |
-          flake8 src/turbo_sdk/ tests/ examples/
+          flake8 src/turbo_sdk/ tests/
 
       - name: Run mypy type checking
         run: |

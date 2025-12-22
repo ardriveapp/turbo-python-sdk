@@ -218,11 +218,11 @@ class TestDataItem:
         binary = dataitem.get_raw()
 
         # Basic verification should pass (we simplified it to not require actual signature verification)
-        assert DataItem.verify(binary) == True
+        assert DataItem.verify(binary) is True
 
         # Too short binary should fail
         short_binary = bytearray(50)  # Less than MIN_BINARY_SIZE
-        assert DataItem.verify(short_binary) == False
+        assert DataItem.verify(short_binary) is False
 
     def test_signature_config_compatibility(self):
         """Test that signature configs work correctly"""

@@ -1,8 +1,10 @@
 from __future__ import annotations
-from typing import Any
+from typing import Any, TYPE_CHECKING
 from .constants import MAX_TAG_BYTES, MIN_BINARY_SIZE, SIG_CONFIG
-from .sign import get_signature_data
 from .tags import decode_tags
+
+if TYPE_CHECKING:
+    from ..signers.signer import Signer
 from .utils import byte_array_to_long, set_bytes
 import hashlib
 import base64
@@ -29,7 +31,7 @@ class DataItem:
     def signature_type(self) -> int:
         sig_type_int = byte_array_to_long(self.binary[0:2])
         sig_config = SIG_CONFIG.get(sig_type_int)
-        if sig_config == None:
+        if sig_config is None:
             raise Exception("invalid signature type {}".format(sig_type_int))
         return sig_type_int
 
@@ -41,7 +43,6 @@ class DataItem:
         if len(bytes) < MIN_BINARY_SIZE:
             return False
         item = DataItem(bytes)
-        sig_type = item.signature_type
         tags_start = item.get_tags_start()
         number_of_tags = byte_array_to_long(bytes[tags_start : tags_start + 8])
         number_of_tags_byte_array = bytes[tags_start + 8 : tags_start + 16]
@@ -53,7 +54,7 @@ class DataItem:
                 tags = decode_tags(bytes[tags_start + 16 : tags_start + 16 + number_of_tag_bytes])
                 if len(tags) != number_of_tags:
                     return False
-            except:
+            except Exception:
                 return False
         # We need the signer to verify, but for now return True if basic checks pass
         # Original Irys code: signer = index_to_type(sig_type)

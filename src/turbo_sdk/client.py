@@ -63,10 +63,7 @@ class Turbo:
         # Generate a random nonce
         nonce = secrets.token_hex(16)
 
-        # Get wallet address
-        address = self._get_wallet_address()
-
-        # Create message to sign: nonce + address
+        # Create message to sign
         message = f"{nonce}".encode("utf-8")
 
         # Sign the message

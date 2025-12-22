@@ -54,7 +54,6 @@ def create_data(
 
     # Process anchor
     anchor_bytes = bytearray(32)  # Initialize with zeros
-    anchor_present = True  # Always include anchor
     if anchor:
         if isinstance(anchor, str):
             anchor_data = anchor.encode("utf-8")

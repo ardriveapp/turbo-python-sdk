@@ -1,6 +1,3 @@
-import struct
-
-
 def _encode_varint(value):
     # cSpell:ignore varint
     """Encode a positive integer as a variable-length integer (Avro zigzag + varint encoding)"""
