@@ -1,6 +1,6 @@
 # Turbo Python SDK
 
-A Python SDK for interacting with the Turbo datachain, supporting both Ethereum and Arweave signers for permanent data storage with winston credit payments.
+A Python SDK for interacting with the [ArDrive Turbo](https://ardrive.io/developers) Upload service, supporting both Ethereum and Arweave signers for permanent data storage on Arweave.
 
 ## Get Started
 
