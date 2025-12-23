@@ -53,3 +53,7 @@ class EthereumSigner(Signer):
         signature = keys.Signature(signature)
         valid = keys.ecdsa_verify(msg_hash, signature, pubkey)
         return valid
+
+    def get_wallet_address(self) -> str:
+        """Get the Ethereum wallet address (checksum format)"""
+        return self.private_key.public_key.to_checksum_address()

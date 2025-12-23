@@ -15,6 +15,7 @@ class TestTurbo:
         signer = Mock()
         signer.signature_type = 3
         signer.public_key = b"\x04" + b"x" * 64  # 65 bytes total
+        signer.get_wallet_address.return_value = "0x1234567890abcdef1234567890abcdef12345678"
         return signer
 
     @pytest.fixture
@@ -23,6 +24,7 @@ class TestTurbo:
         signer = Mock()
         signer.signature_type = 1
         signer.public_key = bytearray(b"y" * 512)  # 512 bytes
+        signer.get_wallet_address.return_value = "mock_arweave_address_base64url"
         return signer
 
     def test_init_with_ethereum_signer(self, ethereum_signer):
@@ -84,40 +86,42 @@ class TestTurbo:
         turbo = Turbo(arweave_signer)
         assert turbo.token == "arweave"
 
-    def test_get_wallet_address_ethereum(self, ethereum_signer):
-        """Test wallet address generation for Ethereum"""
-        # Mock the keccak hash function
-        import turbo_sdk.client
+    def test_get_wallet_address_ethereum(self):
+        """Test wallet address generation for Ethereum signer"""
+        test_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        signer = EthereumSigner(test_key)
 
-        original_import = turbo_sdk.client.__dict__.get("keccak")
+        address = signer.get_wallet_address()
 
-        def mock_keccak(data):
-            # Return a mock hash that ends with known bytes
-            return (
-                b"\x00" * 12
-                + b"\x12\x34\x56\x78\x9a\xbc\xde\xf0\x11\x22\x33\x44\x55\x66\x77\x88\x99\xaa\xbb\xcc"
-            )
+        # Should be 0x + 40 hex chars (checksum address)
+        assert address.startswith("0x")
+        assert len(address) == 42
 
-        try:
-            # Temporarily replace keccak for testing
-            turbo_sdk.client.keccak = mock_keccak
+    @patch("turbo_sdk.signers.arweave.rsa.RSAPrivateNumbers")
+    def test_get_wallet_address_arweave(self, mock_rsa_numbers):
+        """Test wallet address generation for Arweave signer"""
+        import base64
 
-            turbo = Turbo(ethereum_signer)
-            address = turbo._get_wallet_address()
+        # Mock RSA key creation
+        mock_private_key = Mock()
+        mock_rsa_instance = Mock()
+        mock_rsa_instance.private_key.return_value = mock_private_key
+        mock_rsa_numbers.return_value = mock_rsa_instance
 
-            # Should be 0x + 40 hex chars
-            assert address.startswith("0x")
-            assert len(address) == 42
+        test_arweave_jwk = {
+            "kty": "RSA",
+            "n": base64.urlsafe_b64encode(b"n" * 512).decode().rstrip("="),
+            "e": base64.urlsafe_b64encode(b"\x01\x00\x01").decode().rstrip("="),
+            "d": base64.urlsafe_b64encode(b"d" * 512).decode().rstrip("="),
+            "p": base64.urlsafe_b64encode(b"p" * 256).decode().rstrip("="),
+            "q": base64.urlsafe_b64encode(b"q" * 256).decode().rstrip("="),
+            "dp": base64.urlsafe_b64encode(b"dp" * 128).decode().rstrip("="),
+            "dq": base64.urlsafe_b64encode(b"dq" * 128).decode().rstrip("="),
+            "qi": base64.urlsafe_b64encode(b"qi" * 128).decode().rstrip("="),
+        }
 
-        finally:
-            # Restore original import if it existed
-            if original_import:
-                turbo_sdk.client.keccak = original_import
-
-    def test_get_wallet_address_arweave(self, arweave_signer):
-        """Test wallet address generation for Arweave"""
-        turbo = Turbo(arweave_signer)
-        address = turbo._get_wallet_address()
+        signer = ArweaveSigner(test_arweave_jwk)
+        address = signer.get_wallet_address()
 
         # Should be base64url encoded (no padding)
         assert isinstance(address, str)
@@ -183,13 +187,14 @@ class TestTurbo:
         assert turbo.signer == signer
         assert turbo.network == "testnet"
 
-    def test_create_signed_headers(self, ethereum_signer):
-        """Test creation of signed headers for API requests"""
-        # Mock the sign method
-        ethereum_signer.sign.return_value = bytearray(b"mock_signature" + b"0" * 50)
+    def test_create_signed_headers(self):
+        """Test creation of signed headers on signer"""
+        import base64
 
-        turbo = Turbo(ethereum_signer)
-        headers = turbo._create_signed_headers()
+        test_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        signer = EthereumSigner(test_key)
+
+        headers = signer.create_signed_headers()
 
         # Check headers exist
         assert "x-signature" in headers
@@ -197,14 +202,9 @@ class TestTurbo:
         assert "x-public-key" in headers
 
         # Check values are base64 encoded strings
-        import base64
-
         assert isinstance(headers["x-signature"], str)
         assert isinstance(headers["x-nonce"], str)
         assert isinstance(headers["x-public-key"], str)
-
-        # Verify signature was called
-        ethereum_signer.sign.assert_called_once()
 
         # Verify nonce is hex string
         nonce = headers["x-nonce"]
@@ -217,15 +217,6 @@ class TestTurbo:
             base64.b64decode(headers["x-public-key"])
         except Exception:
             pytest.fail("Headers should contain valid base64 data")
-
-    def test_get_wallet_address_public_method(self, ethereum_signer):
-        """Test public get_wallet_address method"""
-        turbo = Turbo(ethereum_signer)
-
-        # Should not raise an error and return a string
-        address = turbo.get_wallet_address()
-        assert isinstance(address, str)
-        assert len(address) > 0
 
     @patch("turbo_sdk.client.requests.get")
     def test_get_balance_404_returns_zero(self, mock_get, ethereum_signer):

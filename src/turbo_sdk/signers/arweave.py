@@ -2,6 +2,7 @@ from turbo_sdk.signers.signer import Signer
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 import base64
+import hashlib
 
 
 class ArweaveSigner(Signer):
@@ -90,3 +91,8 @@ class ArweaveSigner(Signer):
             return True
         except Exception:
             return False
+
+    def get_wallet_address(self) -> str:
+        """Get the Arweave wallet address (base64url-encoded SHA-256 hash of the public key)"""
+        address_hash = hashlib.sha256(self.public_key).digest()
+        return base64.urlsafe_b64encode(address_hash).decode().rstrip("=")
