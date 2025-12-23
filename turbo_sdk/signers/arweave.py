@@ -1,4 +1,5 @@
 from turbo_sdk.signers.signer import Signer
+from turbo_sdk.bundle.utils import b64url_decode
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 import base64
@@ -25,13 +26,6 @@ class ArweaveSigner(Signer):
 
     def _jwk_to_rsa_key(self, jwk: dict):
         """Convert JWK to RSA private key"""
-
-        def b64url_decode(s):
-            padding = 4 - len(s) % 4
-            if padding != 4:
-                s += "=" * padding
-            return base64.urlsafe_b64decode(s)
-
         # Extract RSA components
         n = int.from_bytes(b64url_decode(jwk["n"]), "big")
         e = int.from_bytes(b64url_decode(jwk["e"]), "big")
@@ -52,13 +46,6 @@ class ArweaveSigner(Signer):
 
     def _jwk_to_public_key_bytes(self, jwk: dict) -> bytearray:
         """Extract 512-byte public key from JWK"""
-
-        def b64url_decode(s):
-            padding = 4 - len(s) % 4
-            if padding != 4:
-                s += "=" * padding
-            return base64.urlsafe_b64decode(s)
-
         n_bytes = b64url_decode(jwk["n"])
         if len(n_bytes) != 512:
             raise ValueError(f"Invalid Arweave public key length: {len(n_bytes)} (expected 512)")

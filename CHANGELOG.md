@@ -1,5 +1,12 @@
 # turbo-python-sdk
 
+## 0.0.3
+
+### Changed
+
+- Moved `turbo_sdk` package from `src/` to root directory
+- Extracted `b64url_decode` utility function to `turbo_sdk/bundle/utils.py`
+
 ## 0.0.2
 
 ### Changed
