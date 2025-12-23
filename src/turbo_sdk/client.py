@@ -40,7 +40,7 @@ class Turbo:
             raise ValueError(f"Unsupported signer type: {signer.signature_type}")
 
     def upload(
-        self, data: bytes, tags: Optional[List[Dict[str, str]]] = None, target: Optional[str] = None
+        self, data: bytes, tags: Optional[List[Dict[str, str]]] = None
     ) -> TurboUploadResponse:
         """
         Upload data with automatic signing
@@ -48,7 +48,6 @@ class Turbo:
         Args:
             data: Data to upload
             tags: Optional metadata tags
-            target: Optional target address
 
         Returns:
             TurboUploadResponse with transaction details
@@ -58,7 +57,7 @@ class Turbo:
         """
 
         # Create and sign DataItem
-        data_item = create_data(bytearray(data), self.signer, tags, target)
+        data_item = create_data(bytearray(data), self.signer, tags)
         sign(data_item, self.signer)
 
         # Upload to Turbo endpoint

@@ -71,7 +71,7 @@ Main client for interacting with Turbo services.
 
 **Methods:**
 
-##### `upload(data, tags=None, target=None) -> TurboUploadResponse`
+##### `upload(data, tags=None) -> TurboUploadResponse`
 
 Upload data to the Turbo datachain.
 
@@ -81,8 +81,7 @@ result = turbo.upload(
     tags=[
         {"name": "Content-Type", "value": "application/json"},
         {"name": "App-Name", "value": "MyApp"}
-    ],
-    target="optional_target_address"
+    ]
 )
 ```
 
@@ -129,15 +128,6 @@ cost = turbo.get_upload_price(1024)  # Cost for 1KB
 print(f"Upload cost: {cost} winc")
 ```
 
-##### `get_wallet_address() -> str`
-
-Get the wallet address for the current signer.
-
-```python
-address = turbo.get_wallet_address()
-print(f"Wallet address: {address}")
-```
-
 ### Signers
 
 #### `EthereumSigner(private_key)`
@@ -166,6 +156,27 @@ signer = ArweaveSigner({
     "d": "...",
     # ... other JWK fields
 })
+```
+
+#### Signer Methods
+
+Both signers provide:
+
+##### `get_wallet_address() -> str`
+
+Get the wallet address for the signer.
+
+```python
+address = signer.get_wallet_address()
+print(f"Wallet address: {address}")
+```
+
+##### `create_signed_headers() -> dict`
+
+Create signed headers for authenticated API requests.
+
+```python
+headers = signer.create_signed_headers()
 ```
 
 

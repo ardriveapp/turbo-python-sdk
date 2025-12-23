@@ -7,16 +7,7 @@
 - Moved `get_wallet_address()` to Signer base class with implementations in ArweaveSigner and EthereumSigner
 - Moved `create_signed_headers()` to Signer base class (shared implementation for all signers)
 - Removed `get_wallet_address()` and `_create_signed_headers()` from Turbo client
-
-### Migration
-
-Users should now call wallet address and signed headers directly on the signer:
-
-```python
-signer = EthereumSigner(private_key)
-address = signer.get_wallet_address()
-headers = signer.create_signed_headers()
-```
+- Removed `target` parameter from `upload()` method
 
 ## 0.1.0
 
