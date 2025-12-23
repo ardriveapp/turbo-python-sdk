@@ -51,7 +51,7 @@ Repository = "https://github.com/ardriveapp/turbo-python-sdk"
 Documentation = "https://github.com/ardriveapp/turbo-python-sdk#readme"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
 
 [tool.black]
 line-length = 100
