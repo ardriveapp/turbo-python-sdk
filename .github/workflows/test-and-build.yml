@@ -4,14 +4,14 @@ on:
   push:
     branches: [main, alpha, develop]
     paths:
-      - "src/**"
+      - "turbo_sdk/**"
       - "tests/**"
       - "pyproject.toml"
       - "setup.py"
   pull_request:
     branches: [main, alpha, develop]
     paths:
-      - "src/**"
+      - "turbo_sdk/**"
       - "tests/**"
       - "pyproject.toml"
       - "setup.py"
@@ -70,15 +70,14 @@ jobs:
 
       - name: Run Black formatter check
         run: |
-          black --check src/turbo_sdk/ tests/ examples/
+          black --check turbo_sdk/ tests/ examples/
 
       - name: Run flake8 linting
         run: |
-          flake8 src/turbo_sdk/ tests/
-
+          flake8 turbo_sdk/ tests/
       - name: Run mypy type checking
         run: |
-          mypy src/turbo_sdk/
+          mypy turbo_sdk/
         continue-on-error: true
 
   build:
@@ -138,7 +137,7 @@ jobs:
 
       - name: Run bandit security linter
         run: |
-          bandit -r src/turbo_sdk/ -f json -o bandit-report.json
+          bandit -r turbo_sdk/ -f json -o bandit-report.json
         continue-on-error: true
 
       - name: Upload security report
