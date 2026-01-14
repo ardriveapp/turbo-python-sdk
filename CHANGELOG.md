@@ -1,5 +1,16 @@
 # turbo-python-sdk
 
+## 0.0.4
+
+### Added
+
+- Stream signing support for large files via `sign_stream()` function
+- `deep_hash_blob_stream()` for streaming hash computation without loading entire payload into memory
+- `get_signature_data_stream()` for computing signature hash with streaming data
+- Progress callback support: `on_progress(processed_bytes, total_bytes)` during signing
+- Default chunk size of 256 KiB (matches Arweave chunk size)
+- Exported new functions from `turbo_sdk.bundle` module
+
 ## 0.0.3
 
 ### Changed
