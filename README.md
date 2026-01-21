@@ -61,21 +61,42 @@ print(f"✅ Uploaded! URI: ar://{result.id}")
 
 ### Core Classes
 
-#### `Turbo(signer, network="mainnet")`
+#### `Turbo(signer, network="mainnet", upload_url=None, payment_url=None)`
 
 Main client for interacting with Turbo services.
 
 **Parameters:**
 - `signer`: Either `EthereumSigner` or `ArweaveSigner` instance
 - `network`: `"mainnet"` or `"testnet"` (default: `"mainnet"`)
+- `upload_url`: Optional custom upload service URL (overrides network default)
+- `payment_url`: Optional custom payment service URL (overrides network default)
+
+```python
+# Using default URLs (mainnet)
+turbo = Turbo(signer)
+
+# Using testnet
+turbo = Turbo(signer, network="testnet")
+
+# Using custom URLs
+turbo = Turbo(signer, upload_url="https://my-upload-service.example.com")
+```
 
 **Methods:**
 
-##### `upload(data, tags=None) -> TurboUploadResponse`
+##### `upload(data, tags=None, on_progress=None, chunking=None, data_size=None) -> TurboUploadResponse`
 
-Upload data to the Turbo datachain.
+Upload data to the Turbo datachain. Supports both small files (single request) and large files (chunked multipart upload).
+
+**Parameters:**
+- `data`: Data to upload (`bytes` or file-like `BinaryIO` object)
+- `tags`: Optional list of metadata tags
+- `on_progress`: Optional callback `(processed_bytes, total_bytes) -> None`
+- `chunking`: Optional `ChunkingParams` for upload configuration
+- `data_size`: Required when `data` is a file-like object
 
 ```python
+# Simple upload
 result = turbo.upload(
     data=b"Your data here",
     tags=[
@@ -95,6 +116,51 @@ class TurboUploadResponse:
     fast_finality_indexes: List[str] # Fast finality indexes
     winc: str                      # Winston credits cost
 ```
+
+##### Large File Uploads with Progress
+
+For files >= 5 MiB, the SDK automatically uses chunked multipart uploads. You can track progress with a callback:
+
+```python
+def on_progress(processed: int, total: int):
+    pct = (processed / total) * 100
+    print(f"Upload progress: {pct:.1f}%")
+
+# Upload a large file with progress tracking
+with open("large-video.mp4", "rb") as f:
+    result = turbo.upload(
+        data=f,
+        data_size=os.path.getsize("large-video.mp4"),
+        tags=[{"name": "Content-Type", "value": "video/mp4"}],
+        on_progress=on_progress,
+    )
+```
+
+##### Chunking Configuration
+
+Use `ChunkingParams` to customize chunked upload behavior:
+
+```python
+from turbo_sdk import ChunkingParams
+
+result = turbo.upload(
+    data=large_data,
+    chunking=ChunkingParams(
+        chunk_byte_count=10 * 1024 * 1024,  # 10 MiB chunks (default: 5 MiB)
+        max_chunk_concurrency=3,             # Parallel chunk uploads (default: 1)
+        chunking_mode="auto",                # "auto", "force", or "disabled"
+    ),
+    on_progress=lambda p, t: print(f"{p}/{t} bytes"),
+)
+```
+
+**ChunkingParams options:**
+- `chunk_byte_count`: Chunk size in bytes (5-500 MiB, default: 5 MiB)
+- `max_chunk_concurrency`: Number of parallel chunk uploads (default: 1)
+- `chunking_mode`:
+  - `"auto"` (default): Use chunked upload for files >= 5 MiB
+  - `"force"`: Always use chunked upload
+  - `"disabled"`: Always use single request upload
 
 ##### `get_balance(address=None) -> TurboBalanceResponse`
 
@@ -179,6 +245,27 @@ Create signed headers for authenticated API requests.
 headers = signer.create_signed_headers()
 ```
 
+### Exceptions
+
+The SDK provides specific exceptions for error handling:
+
+```python
+from turbo_sdk import UnderfundedError, ChunkedUploadError
+
+try:
+    result = turbo.upload(large_data)
+except UnderfundedError:
+    print("Insufficient balance - please top up your account")
+except ChunkedUploadError as e:
+    print(f"Upload failed: {e}")
+```
+
+**Exception types:**
+- `ChunkedUploadError`: Base exception for chunked upload failures
+- `UnderfundedError`: Account has insufficient balance (HTTP 402)
+- `UploadValidationError`: Upload validation failed (INVALID status)
+- `UploadFinalizationError`: Finalization timed out or failed
+
 
 ## Developers
 
@@ -203,7 +290,15 @@ pip install -e ".[dev]"
 pytest
 ```
 
-That's it! The test suite includes comprehensive tests for all components without requiring network access.
+3. **Run performance benchmarks** (requires funded wallet):
+
+```bash
+export TURBO_TEST_WALLET=/path/to/wallet.json
+export TURBO_UPLOAD_URL=https://upload.ardrive.dev  # optional, defaults to testnet
+pytest -m performance -v -s
+```
+
+The test suite includes comprehensive unit tests for all components. Performance tests measure real upload throughput against the Turbo service.
 
 ## Acknowledgments
 
