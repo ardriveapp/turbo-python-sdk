@@ -40,7 +40,6 @@ import pytest
 
 from turbo_sdk import Turbo, ArweaveSigner, ChunkingParams
 
-
 # Test wallet path - must be set via environment variable
 WALLET_PATH = os.environ.get("TURBO_TEST_WALLET", "")
 
@@ -111,9 +110,7 @@ def test_data_large():
 class TestUploadPerformance:
     """Performance comparison tests for upload methods"""
 
-    def _upload_single(
-        self, turbo: Turbo, data: bytes, label: str
-    ) -> UploadMetrics:
+    def _upload_single(self, turbo: Turbo, data: bytes, label: str) -> UploadMetrics:
         """Perform single-request upload and collect metrics"""
         start = time.perf_counter()
 
@@ -283,7 +280,7 @@ class TestUploadPerformance:
         metrics = []
 
         chunk_sizes = [
-            5 * 1024 * 1024,   # 5 MiB (minimum)
+            5 * 1024 * 1024,  # 5 MiB (minimum)
             10 * 1024 * 1024,  # 10 MiB
             15 * 1024 * 1024,  # 15 MiB (single chunk for this data)
         ]

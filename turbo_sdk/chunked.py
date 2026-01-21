@@ -135,9 +135,7 @@ class ChunkedUploader:
         elif response.status_code == 404:
             raise ChunkedUploadError("Upload session not found or expired")
         else:
-            raise ChunkedUploadError(
-                f"Finalize failed: {response.status_code} - {response.text}"
-            )
+            raise ChunkedUploadError(f"Finalize failed: {response.status_code} - {response.text}")
 
     def get_status(self, upload_id: str) -> TurboUploadStatus:
         """Get current upload status"""
@@ -164,9 +162,7 @@ class ChunkedUploader:
                 f"Status check failed: {response.status_code} - {response.text}"
             )
 
-    def poll_for_finalization(
-        self, upload_id: str, total_bytes: int
-    ) -> TurboUploadStatus:
+    def poll_for_finalization(self, upload_id: str, total_bytes: int) -> TurboUploadStatus:
         """Poll until upload is finalized or fails"""
         poll_interval = self._get_poll_interval(total_bytes)
         max_wait = self._get_max_finalize_time(total_bytes)
@@ -175,9 +171,7 @@ class ChunkedUploader:
         while True:
             elapsed = time.time() - start_time
             if elapsed > max_wait:
-                raise UploadFinalizationError(
-                    f"Finalization timed out after {elapsed:.1f}s"
-                )
+                raise UploadFinalizationError(f"Finalization timed out after {elapsed:.1f}s")
 
             status = self.get_status(upload_id)
 
@@ -289,17 +283,10 @@ class ChunkedUploader:
 
         try:
             # Upload chunks
-            if (
-                self.params.max_chunk_concurrency > 1
-                and isinstance(data, bytes)
-            ):
-                self.upload_chunks_concurrent(
-                    init.id, data, total_size, on_progress
-                )
+            if self.params.max_chunk_concurrency > 1 and isinstance(data, bytes):
+                self.upload_chunks_concurrent(init.id, data, total_size, on_progress)
             else:
-                self.upload_chunks_sequential(
-                    init.id, data, total_size, on_progress
-                )
+                self.upload_chunks_sequential(init.id, data, total_size, on_progress)
 
             # Finalize
             self.finalize(init.id)

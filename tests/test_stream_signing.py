@@ -18,7 +18,6 @@ from turbo_sdk.bundle.sign import (
 )
 from turbo_sdk.signers import EthereumSigner
 
-
 # Test private key (not a real key, just for testing)
 TEST_PRIVATE_KEY = "0x" + "ab" * 32
 

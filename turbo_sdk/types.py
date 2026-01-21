@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from typing import List, Callable, Literal, Optional
 
-
 # Type aliases
 ChunkingMode = Literal["auto", "force", "disabled"]
 ProgressCallback = Callable[[int, int], None]  # (processed_bytes, total_bytes)
