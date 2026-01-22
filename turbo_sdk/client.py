@@ -1,7 +1,7 @@
 import io
+from typing import BinaryIO, List, Dict, Optional, Union
 
 import requests
-from typing import BinaryIO, List, Dict, Optional, Union
 
 from .types import (
     TurboUploadResponse,
@@ -9,7 +9,7 @@ from .types import (
     ChunkingParams,
     ProgressCallback,
 )
-from .bundle import create_data, sign, StreamingDataItem
+from .bundle import create_data, sign, StreamingDataItem, StreamFactory
 from .chunked import ChunkedUploader
 
 
@@ -61,21 +61,26 @@ class Turbo:
 
     def upload(
         self,
-        data: Union[bytes, BinaryIO],
+        data: Optional[Union[bytes, BinaryIO]] = None,
         tags: Optional[List[Dict[str, str]]] = None,
         on_progress: Optional[ProgressCallback] = None,
         chunking: Optional[ChunkingParams] = None,
         data_size: Optional[int] = None,
+        stream_factory: Optional[StreamFactory] = None,
     ) -> TurboUploadResponse:
         """
         Upload data with automatic signing
 
         Args:
-            data: Data to upload (bytes or file-like object)
+            data: Data to upload (bytes or file-like object). Mutually exclusive
+                  with stream_factory.
             tags: Optional metadata tags
             on_progress: Optional callback for progress reporting (processed_bytes, total_bytes)
             chunking: Optional chunking configuration (defaults to auto mode)
-            data_size: Required when data is a file-like object
+            data_size: Required when using stream_factory or file-like object
+            stream_factory: A callable that returns a fresh BinaryIO stream each time.
+                           Useful for non-seekable streams or when you want control
+                           over stream lifecycle. Mutually exclusive with data.
 
         Returns:
             TurboUploadResponse with transaction details
@@ -84,22 +89,38 @@ class Turbo:
             Exception: If upload fails
             UnderfundedError: If account balance is insufficient
         """
-        # Determine data size
-        if isinstance(data, bytes):
-            size = len(data)
-        elif data_size is not None:
+        # Validate inputs
+        if data is not None and stream_factory is not None:
+            raise ValueError("Cannot specify both data and stream_factory")
+        if data is None and stream_factory is None:
+            raise ValueError("Must specify either data or stream_factory")
+
+        # Determine data size and create stream factory
+        if stream_factory is not None:
+            if data_size is None:
+                raise ValueError("data_size is required when using stream_factory")
             size = data_size
+            factory = stream_factory
+        elif isinstance(data, bytes):
+            size = len(data)
+            factory = lambda: io.BytesIO(data)
         else:
-            raise ValueError("data_size is required when data is a file-like object")
+            # data is a BinaryIO
+            if data_size is None:
+                raise ValueError("data_size is required when data is a file-like object")
+            size = data_size
+            # Capture data in closure to avoid late binding issues
+            stream = data
+            factory = lambda: (stream.seek(0), stream)[1]
 
         # Determine chunking mode
         params = chunking or ChunkingParams()
         use_chunked = self._should_use_chunked_upload(size, params)
 
         if use_chunked:
-            return self._upload_chunked(data, size, tags, on_progress, params)
+            return self._upload_chunked(factory, size, tags, on_progress, params)
         else:
-            return self._upload_single(data, size, tags, on_progress)
+            return self._upload_single(factory, size, tags, on_progress)
 
     def _should_use_chunked_upload(self, size: int, params: ChunkingParams) -> bool:
         """Determine if chunked upload should be used"""
@@ -112,15 +133,17 @@ class Turbo:
 
     def _upload_single(
         self,
-        data: Union[bytes, BinaryIO],
+        stream_factory: StreamFactory,
         size: int,
         tags: Optional[List[Dict[str, str]]],
         on_progress: Optional[ProgressCallback],
     ) -> TurboUploadResponse:
         """Upload using single request (for small files)"""
-        # Read data if it's a stream
-        if not isinstance(data, bytes):
-            data = data.read()
+        # Read all data from stream
+        stream = stream_factory()
+        data = stream.read()
+        if hasattr(stream, "close"):
+            stream.close()
 
         # Create and sign DataItem
         data_item = create_data(bytearray(data), self.signer, tags)
@@ -157,23 +180,17 @@ class Turbo:
 
     def _upload_chunked(
         self,
-        data: Union[bytes, BinaryIO],
+        stream_factory: StreamFactory,
         size: int,
         tags: Optional[List[Dict[str, str]]],
         on_progress: Optional[ProgressCallback],
         params: ChunkingParams,
     ) -> TurboUploadResponse:
         """Upload using chunked/multipart upload (for large files)"""
-        # Wrap bytes in BytesIO for unified streaming path
-        if isinstance(data, bytes):
-            data_stream = io.BytesIO(data)
-        else:
-            data_stream = data
-
         # Use StreamingDataItem for all chunked uploads
         # This signs data by streaming through it, avoiding memory duplication
         streaming_item = StreamingDataItem(
-            data_stream=data_stream,
+            stream_factory=stream_factory,
             data_size=size,
             signer=self.signer,
             tags=tags,

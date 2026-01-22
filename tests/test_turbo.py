@@ -1,3 +1,5 @@
+import io
+import os
 import pytest
 from unittest.mock import Mock, patch
 import requests
@@ -255,3 +257,181 @@ class TestTurbo:
         # Should raise the error
         with pytest.raises(requests.HTTPError):
             turbo.get_balance()
+
+
+class TestTurboUpload:
+    """Test Turbo upload method with different input types"""
+
+    # Test private key (not a real key, just for testing)
+    TEST_PRIVATE_KEY = "0x" + "ab" * 32
+
+    @pytest.fixture
+    def signer(self):
+        """Create a real Ethereum signer for testing."""
+        return EthereumSigner(self.TEST_PRIVATE_KEY)
+
+    @pytest.fixture
+    def turbo(self, signer):
+        """Create a Turbo client for testing."""
+        return Turbo(signer, network="testnet")
+
+    @patch("turbo_sdk.client.requests.post")
+    def test_upload_with_bytes(self, mock_post, turbo):
+        """Test upload with raw bytes data"""
+        test_data = b"Hello, Turbo!" * 10
+
+        # Mock successful response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "test_tx_id",
+            "owner": "test_owner",
+            "dataCaches": ["cache1"],
+            "fastFinalityIndexes": ["index1"],
+            "winc": "1000",
+        }
+        mock_post.return_value = mock_response
+
+        result = turbo.upload(data=test_data, tags=[{"name": "Test", "value": "bytes"}])
+
+        assert result.id == "test_tx_id"
+        assert result.owner == "test_owner"
+        mock_post.assert_called_once()
+
+    @patch("turbo_sdk.client.requests.post")
+    def test_upload_with_stream(self, mock_post, turbo):
+        """Test upload with file-like stream object"""
+        test_data = b"Hello, streaming Turbo!" * 10
+        stream = io.BytesIO(test_data)
+
+        # Mock successful response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "test_tx_id_stream",
+            "owner": "test_owner",
+            "dataCaches": [],
+            "fastFinalityIndexes": [],
+            "winc": "500",
+        }
+        mock_post.return_value = mock_response
+
+        result = turbo.upload(
+            data=stream,
+            data_size=len(test_data),
+            tags=[{"name": "Test", "value": "stream"}],
+        )
+
+        assert result.id == "test_tx_id_stream"
+        mock_post.assert_called_once()
+
+    @patch("turbo_sdk.client.requests.post")
+    def test_upload_with_stream_factory(self, mock_post, turbo):
+        """Test upload with stream_factory callable"""
+        test_data = b"Hello, factory Turbo!" * 10
+        call_count = [0]
+
+        def stream_factory():
+            call_count[0] += 1
+            return io.BytesIO(test_data)
+
+        # Mock successful response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "test_tx_id_factory",
+            "owner": "test_owner",
+            "dataCaches": [],
+            "fastFinalityIndexes": [],
+            "winc": "750",
+        }
+        mock_post.return_value = mock_response
+
+        result = turbo.upload(
+            stream_factory=stream_factory,
+            data_size=len(test_data),
+            tags=[{"name": "Test", "value": "factory"}],
+        )
+
+        assert result.id == "test_tx_id_factory"
+        # Factory should have been called at least once
+        assert call_count[0] >= 1
+        mock_post.assert_called_once()
+
+    @patch("turbo_sdk.client.requests.post")
+    def test_upload_with_file(self, mock_post, turbo, tmp_path):
+        """Test upload with actual file from disk"""
+        # Create a temporary file
+        test_file = tmp_path / "test_upload.bin"
+        test_data = os.urandom(1000)
+        test_file.write_bytes(test_data)
+
+        # Mock successful response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "test_tx_id_file",
+            "owner": "test_owner",
+            "dataCaches": [],
+            "fastFinalityIndexes": [],
+            "winc": "250",
+        }
+        mock_post.return_value = mock_response
+
+        # Use stream_factory to open the file fresh each time
+        def open_file():
+            return open(test_file, "rb")
+
+        result = turbo.upload(
+            stream_factory=open_file,
+            data_size=len(test_data),
+            tags=[{"name": "Test", "value": "file"}],
+        )
+
+        assert result.id == "test_tx_id_file"
+        mock_post.assert_called_once()
+
+    def test_upload_requires_data_or_stream_factory(self, turbo):
+        """Test that upload raises error if neither data nor stream_factory provided"""
+        with pytest.raises(ValueError, match="Must specify either data or stream_factory"):
+            turbo.upload(tags=[{"name": "Test", "value": "nothing"}])
+
+    def test_upload_rejects_both_data_and_stream_factory(self, turbo):
+        """Test that upload raises error if both data and stream_factory provided"""
+        with pytest.raises(ValueError, match="Cannot specify both data and stream_factory"):
+            turbo.upload(
+                data=b"test",
+                stream_factory=lambda: io.BytesIO(b"test"),
+            )
+
+    def test_upload_requires_data_size_for_stream(self, turbo):
+        """Test that upload raises error if stream provided without data_size"""
+        stream = io.BytesIO(b"test data")
+
+        with pytest.raises(ValueError, match="data_size is required"):
+            turbo.upload(data=stream)
+
+    def test_upload_requires_data_size_for_stream_factory(self, turbo):
+        """Test that upload raises error if stream_factory provided without data_size"""
+        with pytest.raises(ValueError, match="data_size is required"):
+            turbo.upload(stream_factory=lambda: io.BytesIO(b"test"))
+
+    @patch("turbo_sdk.client.requests.post")
+    def test_upload_bytes_auto_detects_size(self, mock_post, turbo):
+        """Test that upload automatically detects size for bytes input"""
+        test_data = b"auto size detection"
+
+        # Mock successful response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "test_id",
+            "owner": "owner",
+            "dataCaches": [],
+            "fastFinalityIndexes": [],
+        }
+        mock_post.return_value = mock_response
+
+        # Should work without specifying data_size
+        result = turbo.upload(data=test_data)
+        assert result.id == "test_id"

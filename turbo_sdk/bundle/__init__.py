@@ -12,7 +12,7 @@ from .sign import (
 )
 from .tags import encode_tags, decode_tags
 from .utils import set_bytes, byte_array_to_long
-from .stream import StreamingDataItem
+from .stream import StreamingDataItem, StreamFactory
 
 __all__ = [
     "SIG_CONFIG",
@@ -33,4 +33,5 @@ __all__ = [
     "set_bytes",
     "byte_array_to_long",
     "StreamingDataItem",
+    "StreamFactory",
 ]

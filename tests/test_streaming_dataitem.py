@@ -158,34 +158,33 @@ class TestStreamingDataItem:
         expected = bytes(data_item.get_raw())
 
         # Streaming approach - use same anchor for comparison
-        stream = io.BytesIO(test_data)
         streaming = StreamingDataItem(
-            data_stream=stream,
+            stream_factory=lambda: io.BytesIO(test_data),
             data_size=len(test_data),
             signer=signer,
             tags=tags,
         )
         # Manually set the anchor to match
         streaming._anchor = data_item.raw_anchor
-        streaming._data_stream.seek(0)
 
         # Now prepare - this will use our preset anchor
         from turbo_sdk.bundle.sign import sign_stream
         from turbo_sdk.bundle.tags import encode_tags
 
         encoded_tags = encode_tags(tags)
+        sign_stream_obj = streaming._stream_factory()
         signature = sign_stream(
             signature_type=signer.signature_type,
             raw_owner=signer.public_key,
             raw_target=b"",
             raw_anchor=streaming._anchor,
             raw_tags=encoded_tags,
-            data_stream=streaming._data_stream,
+            data_stream=sign_stream_obj,
             data_size=len(test_data),
             signer=signer,
         )
 
-        streaming._data_stream.seek(0)
+        streaming._data_stream = streaming._stream_factory()
         streaming._header = create_data_header(
             signer=signer,
             signature=signature,
@@ -201,10 +200,9 @@ class TestStreamingDataItem:
     def test_prepare_returns_correct_size(self, signer):
         """prepare() should return correct total size."""
         test_data = b"x" * 1000
-        stream = io.BytesIO(test_data)
 
         streaming = StreamingDataItem(
-            data_stream=stream,
+            stream_factory=lambda: io.BytesIO(test_data),
             data_size=len(test_data),
             signer=signer,
             tags=[{"name": "Test", "value": "value"}],
@@ -219,10 +217,9 @@ class TestStreamingDataItem:
     def test_read_chunks_correctly(self, signer):
         """Reading in chunks should produce same result as reading all."""
         test_data = b"chunked read test data " * 50
-        stream = io.BytesIO(test_data)
 
         streaming = StreamingDataItem(
-            data_stream=stream,
+            stream_factory=lambda: io.BytesIO(test_data),
             data_size=len(test_data),
             signer=signer,
             tags=None,
@@ -249,10 +246,9 @@ class TestStreamingDataItem:
     def test_read_empty_returns_empty(self, signer):
         """read(0) should return empty bytes."""
         test_data = b"test"
-        stream = io.BytesIO(test_data)
 
         streaming = StreamingDataItem(
-            data_stream=stream,
+            stream_factory=lambda: io.BytesIO(test_data),
             data_size=len(test_data),
             signer=signer,
             tags=None,
@@ -264,10 +260,8 @@ class TestStreamingDataItem:
 
     def test_raises_if_not_prepared(self, signer):
         """Should raise error if read() called before prepare()."""
-        stream = io.BytesIO(b"test")
-
         streaming = StreamingDataItem(
-            data_stream=stream,
+            stream_factory=lambda: io.BytesIO(b"test"),
             data_size=4,
             signer=signer,
             tags=None,
@@ -276,33 +270,52 @@ class TestStreamingDataItem:
         with pytest.raises(RuntimeError, match="Must call prepare"):
             streaming.read(10)
 
-    def test_raises_on_non_seekable_stream(self, signer):
-        """Should raise error for non-seekable streams."""
+    def test_works_with_non_seekable_stream(self, signer):
+        """Should work with non-seekable streams via stream_factory."""
+        test_data = b"non-seekable data"
+        call_count = [0]
 
         class NonSeekableStream:
-            def read(self, size=-1):
-                return b"data"
+            def __init__(self, data):
+                self._data = data
+                self._pos = 0
 
-            def seekable(self):
-                return False
+            def read(self, size=-1):
+                if size < 0:
+                    result = self._data[self._pos :]
+                    self._pos = len(self._data)
+                else:
+                    result = self._data[self._pos : self._pos + size]
+                    self._pos += len(result)
+                return result
+
+            def close(self):
+                pass
+
+        def factory():
+            call_count[0] += 1
+            return NonSeekableStream(test_data)
 
         streaming = StreamingDataItem(
-            data_stream=NonSeekableStream(),
-            data_size=4,
+            stream_factory=factory,
+            data_size=len(test_data),
             signer=signer,
             tags=None,
         )
 
-        with pytest.raises(RuntimeError, match="seekable stream"):
-            streaming.prepare()
+        total_size = streaming.prepare()
+        result = streaming.read(-1)
+
+        # Factory should have been called twice: once for signing, once for upload
+        assert call_count[0] == 2
+        assert len(result) == total_size
 
     def test_reset_allows_rereading(self, signer):
         """reset() should allow reading the data again."""
         test_data = b"reset test"
-        stream = io.BytesIO(test_data)
 
         streaming = StreamingDataItem(
-            data_stream=stream,
+            stream_factory=lambda: io.BytesIO(test_data),
             data_size=len(test_data),
             signer=signer,
             tags=None,
@@ -318,14 +331,13 @@ class TestStreamingDataItem:
     def test_progress_callback_during_signing(self, signer):
         """Progress callback should be called during prepare()."""
         test_data = b"x" * 10000
-        stream = io.BytesIO(test_data)
         progress_calls = []
 
         def on_progress(processed, total):
             progress_calls.append((processed, total))
 
         streaming = StreamingDataItem(
-            data_stream=stream,
+            stream_factory=lambda: io.BytesIO(test_data),
             data_size=len(test_data),
             signer=signer,
             tags=None,
@@ -341,10 +353,9 @@ class TestStreamingDataItem:
         """Should handle large data without memory issues."""
         # 1 MiB of data
         test_data = os.urandom(1024 * 1024)
-        stream = io.BytesIO(test_data)
 
         streaming = StreamingDataItem(
-            data_stream=stream,
+            stream_factory=lambda: io.BytesIO(test_data),
             data_size=len(test_data),
             signer=signer,
             tags=[{"name": "Size", "value": "1MB"}],
@@ -365,10 +376,9 @@ class TestStreamingDataItem:
     def test_header_then_data_boundary(self, signer):
         """Reading across header/data boundary should work correctly."""
         test_data = b"boundary test data"
-        stream = io.BytesIO(test_data)
 
         streaming = StreamingDataItem(
-            data_stream=stream,
+            stream_factory=lambda: io.BytesIO(test_data),
             data_size=len(test_data),
             signer=signer,
             tags=None,
@@ -388,10 +398,8 @@ class TestStreamingDataItem:
 
     def test_seekable_returns_false(self, signer):
         """StreamingDataItem should not be seekable after prepare()."""
-        stream = io.BytesIO(b"test")
-
         streaming = StreamingDataItem(
-            data_stream=stream,
+            stream_factory=lambda: io.BytesIO(b"test"),
             data_size=4,
             signer=signer,
             tags=None,
@@ -425,37 +433,42 @@ class TestStreamingDataItemIntegration:
         # Get the raw_tags from data_item for consistency
         encoded_tags = encode_tags([])
 
-        with open(test_file, "rb") as f:
-            streaming = StreamingDataItem(
-                data_stream=f,
-                data_size=len(test_data),
-                signer=signer,
-                tags=None,
-            )
-            # Use same anchor
-            streaming._anchor = data_item.raw_anchor
+        def open_file():
+            return open(test_file, "rb")
 
-            signature = sign_stream(
-                signature_type=signer.signature_type,
-                raw_owner=signer.public_key,
-                raw_target=b"",
-                raw_anchor=streaming._anchor,
-                raw_tags=encoded_tags,
-                data_stream=f,
-                data_size=len(test_data),
-                signer=signer,
-            )
+        streaming = StreamingDataItem(
+            stream_factory=open_file,
+            data_size=len(test_data),
+            signer=signer,
+            tags=None,
+        )
+        # Use same anchor
+        streaming._anchor = data_item.raw_anchor
 
-            f.seek(0)
-            streaming._header = create_data_header(
-                signer=signer,
-                signature=signature,
-                tags=None,
-                anchor=streaming._anchor,
-            )
-            streaming._prepared = True
+        sign_stream_obj = streaming._stream_factory()
+        signature = sign_stream(
+            signature_type=signer.signature_type,
+            raw_owner=signer.public_key,
+            raw_target=b"",
+            raw_anchor=streaming._anchor,
+            raw_tags=encoded_tags,
+            data_stream=sign_stream_obj,
+            data_size=len(test_data),
+            signer=signer,
+        )
+        sign_stream_obj.close()
 
-            streamed_result = streaming.read(-1)
+        streaming._data_stream = streaming._stream_factory()
+        streaming._header = create_data_header(
+            signer=signer,
+            signature=signature,
+            tags=None,
+            anchor=streaming._anchor,
+        )
+        streaming._prepared = True
+
+        streamed_result = streaming.read(-1)
+        streaming._data_stream.close()
 
         expected = bytes(data_item.get_raw())
         assert streamed_result == expected
@@ -467,19 +480,21 @@ class TestStreamingDataItemIntegration:
         test_data = os.urandom(10000)
         test_file.write_bytes(test_data)
 
-        with open(test_file, "rb") as f:
-            streaming = StreamingDataItem(
-                data_stream=f,
-                data_size=len(test_data),
-                signer=signer,
-                tags=[{"name": "App", "value": "Test"}],
-            )
+        def open_file():
+            return open(test_file, "rb")
 
-            total_size = streaming.prepare()
-            result = streaming.read(-1)
+        streaming = StreamingDataItem(
+            stream_factory=open_file,
+            data_size=len(test_data),
+            signer=signer,
+            tags=[{"name": "App", "value": "Test"}],
+        )
 
-            # Verify size matches
-            assert len(result) == total_size
+        total_size = streaming.prepare()
+        result = streaming.read(-1)
 
-            # Verify it starts with correct signature type (Ethereum = 3)
-            assert result[0:2] == b"\x03\x00"  # Little-endian 3
+        # Verify size matches
+        assert len(result) == total_size
+
+        # Verify it starts with correct signature type (Ethereum = 3)
+        assert result[0:2] == b"\x03\x00"  # Little-endian 3

@@ -7,6 +7,9 @@ from .create import create_data_header
 from .sign import sign_stream
 from .tags import encode_tags
 
+# Type alias for stream factory
+StreamFactory = Callable[[], BinaryIO]
+
 
 class StreamingDataItem:
     """
@@ -18,20 +21,29 @@ class StreamingDataItem:
     2. Builds the DataItem header with the computed signature
     3. Provides a read() interface that returns header bytes first, then data
 
-    The underlying stream must be seekable (supports seek(0)) because:
-    - First pass: read through data to compute signature hash
-    - Second pass: read through data for upload
+    Uses a stream_factory pattern: a callable that returns a fresh stream
+    each time it's called. This allows:
+    - Non-seekable streams (generators, network streams, etc.)
+    - Clean separation between signing pass and upload pass
+    - Easy retries by creating a new stream
 
     Usage:
-        with open("large_file.bin", "rb") as f:
-            streaming = StreamingDataItem(f, file_size, signer, tags)
-            total_size = streaming.prepare()
-            # Now use streaming.read() to get chunks for upload
+        def open_file():
+            return open("large_file.bin", "rb")
+
+        streaming = StreamingDataItem(
+            stream_factory=open_file,
+            data_size=file_size,
+            signer=signer,
+            tags=tags,
+        )
+        total_size = streaming.prepare()
+        # Now use streaming.read() to get chunks for upload
     """
 
     def __init__(
         self,
-        data_stream: BinaryIO,
+        stream_factory: StreamFactory,
         data_size: int,
         signer,
         tags: Optional[List[Dict[str, str]]] = None,
@@ -41,13 +53,13 @@ class StreamingDataItem:
         Initialize a StreamingDataItem.
 
         Args:
-            data_stream: A seekable file-like object containing the data
+            stream_factory: A callable that returns a fresh BinaryIO stream
             data_size: Total size of the data in bytes
             signer: The signer object with signature_type, public_key, sign()
             tags: Optional list of tags as dictionaries with 'name' and 'value'
             on_sign_progress: Optional callback(processed, total) during signing
         """
-        self._data_stream = data_stream
+        self._stream_factory = stream_factory
         self._data_size = data_size
         self._signer = signer
         self._tags = tags or []
@@ -57,35 +69,29 @@ class StreamingDataItem:
         self._header_offset = 0
         self._prepared = False
         self._anchor: Optional[bytes] = None
+        self._data_stream: Optional[BinaryIO] = None
 
     def prepare(self) -> int:
         """
         Sign the data (streaming) and prepare the header.
 
-        This reads through the entire data stream to compute the signature,
-        then seeks back to the start for the upload phase.
+        This creates a fresh stream from the factory to compute the signature,
+        then creates another fresh stream for the upload phase.
 
         Returns:
             Total size in bytes (header + data)
-
-        Raises:
-            RuntimeError: If stream is not seekable
         """
         if self._prepared:
             return len(self._header) + self._data_size
-
-        # Verify stream is seekable
-        if not self._data_stream.seekable():
-            raise RuntimeError(
-                "StreamingDataItem requires a seekable stream. "
-                "For non-seekable streams, load data into memory first."
-            )
 
         # Generate random anchor
         self._anchor = os.urandom(32)
 
         # Encode tags for signing
         encoded_tags = encode_tags(self._tags)
+
+        # Create a stream for signing
+        sign_stream_obj = self._stream_factory()
 
         # Compute signature by streaming through data
         signature = sign_stream(
@@ -94,14 +100,21 @@ class StreamingDataItem:
             raw_target=b"",
             raw_anchor=self._anchor,
             raw_tags=encoded_tags,
-            data_stream=self._data_stream,
+            data_stream=sign_stream_obj,
             data_size=self._data_size,
             signer=self._signer,
             on_progress=self._on_sign_progress,
         )
 
-        # Seek back to start for upload
-        self._data_stream.seek(0)
+        # Close the signing stream if it has a close method
+        if hasattr(sign_stream_obj, "close"):
+            try:
+                sign_stream_obj.close()
+            except Exception:
+                pass  # Ignore close errors
+
+        # Create a fresh stream for upload
+        self._data_stream = self._stream_factory()
 
         # Build header with the computed signature
         self._header = create_data_header(
@@ -189,10 +202,16 @@ class StreamingDataItem:
         """
         Reset the streaming position to allow re-reading.
 
-        This seeks the underlying data stream back to the start and
-        resets the header offset.
+        Creates a fresh data stream from the factory and resets the header offset.
         """
         if not self._prepared:
             raise RuntimeError("Must call prepare() first")
         self._header_offset = 0
-        self._data_stream.seek(0)
+        # Close existing stream if it has a close method
+        if self._data_stream is not None and hasattr(self._data_stream, "close"):
+            try:
+                self._data_stream.close()
+            except Exception:
+                pass  # Ignore close errors
+        # Create fresh stream from factory
+        self._data_stream = self._stream_factory()
