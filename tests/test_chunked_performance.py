@@ -353,7 +353,6 @@ class TestProgressCallbackPerformance:
     @pytest.mark.performance
     def test_progress_callback_overhead(self, turbo_client, test_data_medium):
         """Measure overhead of progress callbacks"""
-        results = []
 
         # Without callback
         start = time.perf_counter()
@@ -382,8 +381,8 @@ class TestProgressCallbackPerformance:
         overhead_pct = ((time_with_callback - time_no_callback) / time_no_callback) * 100
 
         print(f"\n{'=' * 50}")
-        print(f" Progress Callback Overhead Test")
-        print(f"{'=' * 50}")
+        print("Progress Callback Overhead Test")
+        print("=" * 50)
         print(f"Without callback: {time_no_callback:.2f}s")
         print(f"With callback:    {time_with_callback:.2f}s")
         print(f"Overhead:         {overhead_pct:+.1f}%")
