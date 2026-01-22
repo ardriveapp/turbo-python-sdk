@@ -1,3 +1,5 @@
+import io
+
 import requests
 from typing import BinaryIO, List, Dict, Optional, Union
 
@@ -7,7 +9,7 @@ from .types import (
     ChunkingParams,
     ProgressCallback,
 )
-from .bundle import create_data, sign
+from .bundle import create_data, sign, StreamingDataItem
 from .chunked import ChunkedUploader
 
 
@@ -162,17 +164,23 @@ class Turbo:
         params: ChunkingParams,
     ) -> TurboUploadResponse:
         """Upload using chunked/multipart upload (for large files)"""
-        # Read data if stream (needed for signing)
-        # TODO: In future, implement true streaming with sign_stream
-        if not isinstance(data, bytes):
-            data = data.read()
+        # Wrap bytes in BytesIO for unified streaming path
+        if isinstance(data, bytes):
+            data_stream = io.BytesIO(data)
+        else:
+            data_stream = data
 
-        # Create and sign DataItem
-        data_item = create_data(bytearray(data), self.signer, tags)
-        sign(data_item, self.signer)
+        # Use StreamingDataItem for all chunked uploads
+        # This signs data by streaming through it, avoiding memory duplication
+        streaming_item = StreamingDataItem(
+            data_stream=data_stream,
+            data_size=size,
+            signer=self.signer,
+            tags=tags,
+        )
 
-        # Get signed data
-        signed_data = bytes(data_item.get_raw())
+        # Prepare signs the data (streaming) and builds the header
+        total_size = streaming_item.prepare()
 
         # Create chunked uploader
         uploader = ChunkedUploader(
@@ -181,10 +189,10 @@ class Turbo:
             chunking_params=params,
         )
 
-        # Perform chunked upload
+        # Upload using the streaming item as a file-like object
         return uploader.upload(
-            data=signed_data,
-            total_size=len(signed_data),
+            data=streaming_item,
+            total_size=total_size,
             on_progress=on_progress,
         )
 

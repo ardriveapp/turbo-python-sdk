@@ -133,3 +133,123 @@ def create_data(
     set_bytes(binary, data, offset)
 
     return DataItem(binary)
+
+
+def create_data_header(
+    signer,
+    signature: bytes,
+    tags: Optional[List[Dict[str, str]]] = None,
+    target: Optional[str] = None,
+    anchor: Optional[bytes] = None,
+) -> bytes:
+    """
+    Create the header portion of a DataItem (everything before the data).
+    Used for streaming uploads where data is appended separately.
+
+    Args:
+        signer: The signer object with signature_type, public_key, etc.
+        signature: The pre-computed signature bytes
+        tags: Optional list of tags as dictionaries with 'name' and 'value' keys
+        target: Optional target address (hex string)
+        anchor: Raw anchor bytes (32 bytes). If None, random anchor is generated.
+
+    Returns:
+        Header bytes that can be prepended to streamed data
+    """
+    # Get signature configuration
+    sig_config = SIG_CONFIG[signer.signature_type]
+    sig_length = sig_config["sigLength"]
+    pub_length = sig_config["pubLength"]
+
+    # Validate signature length
+    if len(signature) != sig_length:
+        raise ValueError(f"Signature must be {sig_length} bytes, got {len(signature)}")
+
+    # Process tags
+    if tags is None:
+        tags = []
+    encoded_tags = encode_tags(tags)
+
+    # Process target
+    target_bytes = bytearray(32)
+    target_present = False
+    if target:
+        target_hex = target.replace("0x", "")
+        target_data = bytes.fromhex(target_hex)
+        if len(target_data) > 32:
+            raise ValueError("Target must be 32 bytes or less")
+        for i, b in enumerate(target_data):
+            target_bytes[i] = b
+        target_present = True
+
+    # Process anchor
+    anchor_bytes = bytearray(32)
+    if anchor is not None:
+        if len(anchor) != 32:
+            raise ValueError("Anchor must be exactly 32 bytes")
+        for i, b in enumerate(anchor):
+            anchor_bytes[i] = b
+    else:
+        random_anchor = os.urandom(32)
+        for i, b in enumerate(random_anchor):
+            anchor_bytes[i] = b
+
+    # Calculate header size (everything except data)
+    header_size = (
+        2  # signature type
+        + sig_length  # signature
+        + pub_length  # owner/public key
+        + 1  # target present flag
+        + (32 if target_present else 0)  # target
+        + 1  # anchor present flag
+        + 32  # anchor (always present)
+        + 8  # number of tags
+        + 8  # tag data length
+        + len(encoded_tags)  # tag data
+    )
+
+    # Create binary buffer
+    binary = bytearray(header_size)
+    offset = 0
+
+    # 1. Signature type (2 bytes, little-endian)
+    struct.pack_into("<H", binary, offset, signer.signature_type)
+    offset += 2
+
+    # 2. Signature
+    set_bytes(binary, signature, offset)
+    offset += sig_length
+
+    # 3. Owner/public key
+    set_bytes(binary, signer.public_key, offset)
+    offset += pub_length
+
+    # 4. Target present flag
+    binary[offset] = 1 if target_present else 0
+    offset += 1
+
+    # 5. Target (32 bytes, only if present)
+    if target_present:
+        set_bytes(binary, target_bytes, offset)
+        offset += 32
+
+    # 6. Anchor present flag (always 1)
+    binary[offset] = 1
+    offset += 1
+
+    # 7. Anchor (32 bytes, always present)
+    set_bytes(binary, anchor_bytes, offset)
+    offset += 32
+
+    # 8. Number of tags (8 bytes, little-endian)
+    struct.pack_into("<Q", binary, offset, len(tags))
+    offset += 8
+
+    # 9. Tag data length (8 bytes, little-endian)
+    struct.pack_into("<Q", binary, offset, len(encoded_tags))
+    offset += 8
+
+    # 10. Tag data
+    set_bytes(binary, encoded_tags, offset)
+
+    return bytes(binary)

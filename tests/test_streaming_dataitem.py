@@ -1,0 +1,485 @@
+"""
+Unit tests for StreamingDataItem and create_data_header.
+
+Tests verify that streaming DataItem construction produces identical binary
+output to the in-memory approach, ensuring compatibility with the server.
+"""
+
+import io
+import os
+import pytest
+from turbo_sdk.bundle import (
+    create_data,
+    create_data_header,
+    sign,
+    StreamingDataItem,
+)
+from turbo_sdk.signers import EthereumSigner
+
+# Test private key (not a real key, just for testing)
+TEST_PRIVATE_KEY = "0x" + "ab" * 32
+
+
+class TestCreateDataHeader:
+    """Tests for create_data_header function."""
+
+    @pytest.fixture
+    def signer(self):
+        """Create a real Ethereum signer for testing."""
+        return EthereumSigner(TEST_PRIVATE_KEY)
+
+    def test_header_matches_dataitem_prefix(self, signer):
+        """Header bytes should match the prefix of a full DataItem."""
+        test_data = b"Hello, Arweave!"
+        tags = [{"name": "Content-Type", "value": "text/plain"}]
+
+        # Create full DataItem in memory
+        data_item = create_data(bytearray(test_data), signer, tags)
+        sign(data_item, signer)
+        full_raw = bytes(data_item.get_raw())
+
+        # Create header only
+        header = create_data_header(
+            signer=signer,
+            signature=data_item.raw_signature,
+            tags=tags,
+            anchor=data_item.raw_anchor,
+        )
+
+        # Header should be a prefix of the full DataItem
+        assert full_raw.startswith(header)
+
+        # Header + data should equal full DataItem
+        reconstructed = header + test_data
+        assert reconstructed == full_raw
+
+    def test_header_with_no_tags(self, signer):
+        """Should work correctly with no tags."""
+        test_data = b"No tags here"
+
+        data_item = create_data(bytearray(test_data), signer, tags=None)
+        sign(data_item, signer)
+        full_raw = bytes(data_item.get_raw())
+
+        header = create_data_header(
+            signer=signer,
+            signature=data_item.raw_signature,
+            tags=None,
+            anchor=data_item.raw_anchor,
+        )
+
+        reconstructed = header + test_data
+        assert reconstructed == full_raw
+
+    def test_header_with_multiple_tags(self, signer):
+        """Should work correctly with multiple tags."""
+        test_data = b"Multiple tags"
+        tags = [
+            {"name": "Content-Type", "value": "application/octet-stream"},
+            {"name": "App-Name", "value": "TestApp"},
+            {"name": "Version", "value": "1.0.0"},
+        ]
+
+        data_item = create_data(bytearray(test_data), signer, tags=tags)
+        sign(data_item, signer)
+        full_raw = bytes(data_item.get_raw())
+
+        header = create_data_header(
+            signer=signer,
+            signature=data_item.raw_signature,
+            tags=tags,
+            anchor=data_item.raw_anchor,
+        )
+
+        reconstructed = header + test_data
+        assert reconstructed == full_raw
+
+    def test_signature_length_validation(self, signer):
+        """Should reject signatures with wrong length."""
+        with pytest.raises(ValueError, match="Signature must be"):
+            create_data_header(
+                signer=signer,
+                signature=b"too_short",
+                tags=None,
+                anchor=os.urandom(32),
+            )
+
+    def test_anchor_length_validation(self, signer):
+        """Should reject anchors with wrong length."""
+        # Ethereum signature is 65 bytes
+        signature = b"x" * 65
+
+        with pytest.raises(ValueError, match="Anchor must be exactly 32 bytes"):
+            create_data_header(
+                signer=signer,
+                signature=signature,
+                tags=None,
+                anchor=b"short_anchor",
+            )
+
+    def test_random_anchor_generated_when_none(self, signer):
+        """Should generate random anchor when none provided."""
+        signature = b"x" * 65
+
+        header1 = create_data_header(
+            signer=signer,
+            signature=signature,
+            tags=None,
+            anchor=None,
+        )
+
+        header2 = create_data_header(
+            signer=signer,
+            signature=signature,
+            tags=None,
+            anchor=None,
+        )
+
+        # Headers should differ due to different random anchors
+        assert header1 != header2
+
+
+class TestStreamingDataItem:
+    """Tests for StreamingDataItem class."""
+
+    @pytest.fixture
+    def signer(self):
+        """Create a real Ethereum signer for testing."""
+        return EthereumSigner(TEST_PRIVATE_KEY)
+
+    def test_streaming_matches_inmemory(self, signer):
+        """Streaming DataItem should produce identical bytes to in-memory."""
+        test_data = b"Hello, streaming world!" * 100
+        tags = [{"name": "Content-Type", "value": "text/plain"}]
+
+        # In-memory approach
+        data_item = create_data(bytearray(test_data), signer, tags)
+        sign(data_item, signer)
+        expected = bytes(data_item.get_raw())
+
+        # Streaming approach - use same anchor for comparison
+        stream = io.BytesIO(test_data)
+        streaming = StreamingDataItem(
+            data_stream=stream,
+            data_size=len(test_data),
+            signer=signer,
+            tags=tags,
+        )
+        # Manually set the anchor to match
+        streaming._anchor = data_item.raw_anchor
+        streaming._data_stream.seek(0)
+
+        # Now prepare - this will use our preset anchor
+        from turbo_sdk.bundle.sign import sign_stream
+        from turbo_sdk.bundle.tags import encode_tags
+
+        encoded_tags = encode_tags(tags)
+        signature = sign_stream(
+            signature_type=signer.signature_type,
+            raw_owner=signer.public_key,
+            raw_target=b"",
+            raw_anchor=streaming._anchor,
+            raw_tags=encoded_tags,
+            data_stream=streaming._data_stream,
+            data_size=len(test_data),
+            signer=signer,
+        )
+
+        streaming._data_stream.seek(0)
+        streaming._header = create_data_header(
+            signer=signer,
+            signature=signature,
+            tags=tags,
+            anchor=streaming._anchor,
+        )
+        streaming._prepared = True
+
+        actual = streaming.read(-1)
+
+        assert actual == expected
+
+    def test_prepare_returns_correct_size(self, signer):
+        """prepare() should return correct total size."""
+        test_data = b"x" * 1000
+        stream = io.BytesIO(test_data)
+
+        streaming = StreamingDataItem(
+            data_stream=stream,
+            data_size=len(test_data),
+            signer=signer,
+            tags=[{"name": "Test", "value": "value"}],
+        )
+
+        total_size = streaming.prepare()
+
+        # Total should be header + data
+        assert total_size == streaming.header_size + len(test_data)
+        assert total_size == streaming.total_size
+
+    def test_read_chunks_correctly(self, signer):
+        """Reading in chunks should produce same result as reading all."""
+        test_data = b"chunked read test data " * 50
+        stream = io.BytesIO(test_data)
+
+        streaming = StreamingDataItem(
+            data_stream=stream,
+            data_size=len(test_data),
+            signer=signer,
+            tags=None,
+        )
+        total_size = streaming.prepare()
+
+        # Read in chunks
+        chunks = []
+        while True:
+            chunk = streaming.read(100)
+            if not chunk:
+                break
+            chunks.append(chunk)
+
+        chunked_result = b"".join(chunks)
+
+        # Reset and read all at once
+        streaming.reset()
+        all_at_once = streaming.read(-1)
+
+        assert chunked_result == all_at_once
+        assert len(chunked_result) == total_size
+
+    def test_read_empty_returns_empty(self, signer):
+        """read(0) should return empty bytes."""
+        test_data = b"test"
+        stream = io.BytesIO(test_data)
+
+        streaming = StreamingDataItem(
+            data_stream=stream,
+            data_size=len(test_data),
+            signer=signer,
+            tags=None,
+        )
+        streaming.prepare()
+
+        result = streaming.read(0)
+        assert result == b""
+
+    def test_raises_if_not_prepared(self, signer):
+        """Should raise error if read() called before prepare()."""
+        stream = io.BytesIO(b"test")
+
+        streaming = StreamingDataItem(
+            data_stream=stream,
+            data_size=4,
+            signer=signer,
+            tags=None,
+        )
+
+        with pytest.raises(RuntimeError, match="Must call prepare"):
+            streaming.read(10)
+
+    def test_raises_on_non_seekable_stream(self, signer):
+        """Should raise error for non-seekable streams."""
+
+        class NonSeekableStream:
+            def read(self, size=-1):
+                return b"data"
+
+            def seekable(self):
+                return False
+
+        streaming = StreamingDataItem(
+            data_stream=NonSeekableStream(),
+            data_size=4,
+            signer=signer,
+            tags=None,
+        )
+
+        with pytest.raises(RuntimeError, match="seekable stream"):
+            streaming.prepare()
+
+    def test_reset_allows_rereading(self, signer):
+        """reset() should allow reading the data again."""
+        test_data = b"reset test"
+        stream = io.BytesIO(test_data)
+
+        streaming = StreamingDataItem(
+            data_stream=stream,
+            data_size=len(test_data),
+            signer=signer,
+            tags=None,
+        )
+        streaming.prepare()
+
+        first_read = streaming.read(-1)
+        streaming.reset()
+        second_read = streaming.read(-1)
+
+        assert first_read == second_read
+
+    def test_progress_callback_during_signing(self, signer):
+        """Progress callback should be called during prepare()."""
+        test_data = b"x" * 10000
+        stream = io.BytesIO(test_data)
+        progress_calls = []
+
+        def on_progress(processed, total):
+            progress_calls.append((processed, total))
+
+        streaming = StreamingDataItem(
+            data_stream=stream,
+            data_size=len(test_data),
+            signer=signer,
+            tags=None,
+            on_sign_progress=on_progress,
+        )
+        streaming.prepare()
+
+        assert len(progress_calls) > 0
+        assert progress_calls[-1][0] == len(test_data)
+        assert progress_calls[-1][1] == len(test_data)
+
+    def test_large_data_streaming(self, signer):
+        """Should handle large data without memory issues."""
+        # 1 MiB of data
+        test_data = os.urandom(1024 * 1024)
+        stream = io.BytesIO(test_data)
+
+        streaming = StreamingDataItem(
+            data_stream=stream,
+            data_size=len(test_data),
+            signer=signer,
+            tags=[{"name": "Size", "value": "1MB"}],
+        )
+
+        total_size = streaming.prepare()
+
+        # Read in chunks and verify total size
+        total_read = 0
+        while True:
+            chunk = streaming.read(64 * 1024)  # 64 KiB chunks
+            if not chunk:
+                break
+            total_read += len(chunk)
+
+        assert total_read == total_size
+
+    def test_header_then_data_boundary(self, signer):
+        """Reading across header/data boundary should work correctly."""
+        test_data = b"boundary test data"
+        stream = io.BytesIO(test_data)
+
+        streaming = StreamingDataItem(
+            data_stream=stream,
+            data_size=len(test_data),
+            signer=signer,
+            tags=None,
+        )
+        streaming.prepare()
+
+        # Get header size
+        header_size = streaming.header_size
+
+        # Read exactly to header boundary
+        header_part = streaming.read(header_size)
+        assert len(header_part) == header_size
+
+        # Read the data part
+        data_part = streaming.read(-1)
+        assert data_part == test_data
+
+    def test_seekable_returns_false(self, signer):
+        """StreamingDataItem should not be seekable after prepare()."""
+        stream = io.BytesIO(b"test")
+
+        streaming = StreamingDataItem(
+            data_stream=stream,
+            data_size=4,
+            signer=signer,
+            tags=None,
+        )
+
+        assert streaming.seekable() is False
+
+
+class TestStreamingDataItemIntegration:
+    """Integration tests for StreamingDataItem with real file-like objects."""
+
+    @pytest.fixture
+    def signer(self):
+        """Create a real Ethereum signer for testing."""
+        return EthereumSigner(TEST_PRIVATE_KEY)
+
+    def test_with_tempfile(self, signer, tmp_path):
+        """Should work correctly with actual file objects."""
+        from turbo_sdk.bundle.sign import sign_stream
+        from turbo_sdk.bundle.tags import encode_tags
+
+        # Create a temporary file
+        test_file = tmp_path / "test_data.bin"
+        test_data = os.urandom(5000)
+        test_file.write_bytes(test_data)
+
+        # Compare with in-memory result
+        data_item = create_data(bytearray(test_data), signer, tags=None)
+        sign(data_item, signer)
+
+        # Get the raw_tags from data_item for consistency
+        encoded_tags = encode_tags([])
+
+        with open(test_file, "rb") as f:
+            streaming = StreamingDataItem(
+                data_stream=f,
+                data_size=len(test_data),
+                signer=signer,
+                tags=None,
+            )
+            # Use same anchor
+            streaming._anchor = data_item.raw_anchor
+
+            signature = sign_stream(
+                signature_type=signer.signature_type,
+                raw_owner=signer.public_key,
+                raw_target=b"",
+                raw_anchor=streaming._anchor,
+                raw_tags=encoded_tags,
+                data_stream=f,
+                data_size=len(test_data),
+                signer=signer,
+            )
+
+            f.seek(0)
+            streaming._header = create_data_header(
+                signer=signer,
+                signature=signature,
+                tags=None,
+                anchor=streaming._anchor,
+            )
+            streaming._prepared = True
+
+            streamed_result = streaming.read(-1)
+
+        expected = bytes(data_item.get_raw())
+        assert streamed_result == expected
+
+    def test_with_tempfile_using_prepare(self, signer, tmp_path):
+        """Test using the normal prepare() flow with a temp file."""
+        # Create a temporary file
+        test_file = tmp_path / "test_data.bin"
+        test_data = os.urandom(10000)
+        test_file.write_bytes(test_data)
+
+        with open(test_file, "rb") as f:
+            streaming = StreamingDataItem(
+                data_stream=f,
+                data_size=len(test_data),
+                signer=signer,
+                tags=[{"name": "App", "value": "Test"}],
+            )
+
+            total_size = streaming.prepare()
+            result = streaming.read(-1)
+
+            # Verify size matches
+            assert len(result) == total_size
+
+            # Verify it starts with correct signature type (Ethereum = 3)
+            assert result[0:2] == b"\x03\x00"  # Little-endian 3

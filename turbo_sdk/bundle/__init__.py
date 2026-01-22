@@ -1,6 +1,6 @@
 from .constants import SIG_CONFIG, MAX_TAG_BYTES, MIN_BINARY_SIZE
 from .dataitem import DataItem
-from .create import create_data
+from .create import create_data, create_data_header
 from .sign import (
     sign,
     deep_hash,
@@ -12,6 +12,7 @@ from .sign import (
 )
 from .tags import encode_tags, decode_tags
 from .utils import set_bytes, byte_array_to_long
+from .stream import StreamingDataItem
 
 __all__ = [
     "SIG_CONFIG",
@@ -19,6 +20,7 @@ __all__ = [
     "MIN_BINARY_SIZE",
     "DataItem",
     "create_data",
+    "create_data_header",
     "sign",
     "deep_hash",
     "get_signature_data",
@@ -30,4 +32,5 @@ __all__ = [
     "decode_tags",
     "set_bytes",
     "byte_array_to_long",
+    "StreamingDataItem",
 ]
