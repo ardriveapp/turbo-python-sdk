@@ -334,6 +334,13 @@ There is no automated versioning. Before publishing, update the `version` field 
 version = "0.0.5"
 ```
 
+Steps to release:
+
+1. Merge feature branches into `alpha`.
+2. Review the commits and update the `version` field in `pyproject.toml` accordingly.
+3. Push to the `alpha` branch.
+4. Manually run the release workflow at `.github/workflows/release.yml` via `workflow_dispatch`.
+
 The workflow runs tests across Python 3.8-3.12, builds the package, and publishes to PyPI using trusted OIDC publishing.
 
 To publish locally instead:
