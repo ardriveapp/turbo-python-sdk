@@ -2,6 +2,7 @@
 """
 Example: Upload data using Arweave JWK wallet
 """
+
 from turbo_sdk import Turbo, ArweaveSigner
 import json
 import sys

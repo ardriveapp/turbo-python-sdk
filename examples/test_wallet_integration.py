@@ -2,6 +2,7 @@
 """
 Test integration with real Arweave wallet (without network calls)
 """
+
 import json
 from pathlib import Path
 from turbo_sdk import Turbo, ArweaveSigner

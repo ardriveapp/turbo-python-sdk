@@ -61,21 +61,45 @@ print(f"✅ Uploaded! URI: ar://{result.id}")
 
 ### Core Classes
 
-#### `Turbo(signer, network="mainnet")`
+#### `Turbo(signer, network="mainnet", upload_url=None, payment_url=None)`
 
 Main client for interacting with Turbo services.
 
 **Parameters:**
+
 - `signer`: Either `EthereumSigner` or `ArweaveSigner` instance
 - `network`: `"mainnet"` or `"testnet"` (default: `"mainnet"`)
+- `upload_url`: Optional custom upload service URL (overrides network default)
+- `payment_url`: Optional custom payment service URL (overrides network default)
+
+```python
+# Using default URLs (mainnet)
+turbo = Turbo(signer)
+
+# Using testnet
+turbo = Turbo(signer, network="testnet")
+
+# Using custom URLs
+turbo = Turbo(signer, upload_url="https://my-upload-service.example.com")
+```
 
 **Methods:**
 
-##### `upload(data, tags=None) -> TurboUploadResponse`
+##### `upload(data=None, tags=None, on_progress=None, chunking=None, data_size=None, stream_factory=None) -> TurboUploadResponse`
 
-Upload data to the Turbo datachain.
+Upload data to the Turbo datachain. Supports both small files (single request) and large files (chunked multipart upload).
+
+**Parameters:**
+
+- `data`: Data to upload (`bytes` or file-like `BinaryIO` object)
+- `tags`: Optional list of metadata tags
+- `on_progress`: Optional callback `(processed_bytes, total_bytes) -> None`
+- `chunking`: Optional `ChunkingParams` for upload configuration
+- `data_size`: Required when `data` is a file-like object or when using `stream_factory`
+- `stream_factory`: Optional callable that returns a fresh `BinaryIO` stream each time it's called. Use this for non-seekable streams or when you want to avoid loading the entire file into memory.
 
 ```python
+# Simple upload
 result = turbo.upload(
     data=b"Your data here",
     tags=[
@@ -86,6 +110,7 @@ result = turbo.upload(
 ```
 
 **Returns:** `TurboUploadResponse`
+
 ```python
 @dataclass
 class TurboUploadResponse:
@@ -95,6 +120,54 @@ class TurboUploadResponse:
     fast_finality_indexes: List[str] # Fast finality indexes
     winc: str                      # Winston credits cost
 ```
+
+##### Large File Uploads with Progress
+
+For files >= 5 MiB, the SDK automatically uses chunked multipart uploads. Use `stream_factory` to avoid loading the entire file into memory. A factory is needed because the stream is consumed twice — once for signing and once for uploading — so the SDK calls it each time to get a fresh stream.
+
+```python
+import os
+
+def on_progress(processed: int, total: int):
+    pct = (processed / total) * 100
+    print(f"Upload progress: {pct:.1f}%")
+
+file_path = "large-video.mp4"
+
+result = turbo.upload(
+    stream_factory=lambda: open(file_path, "rb"),
+    data_size=os.path.getsize(file_path),
+    tags=[{"name": "Content-Type", "value": "video/mp4"}],
+    on_progress=on_progress,
+)
+```
+
+##### Chunking Configuration
+
+Use `ChunkingParams` to customize chunked upload behavior:
+
+```python
+from turbo_sdk import ChunkingParams
+
+result = turbo.upload(
+    data=large_data,
+    chunking=ChunkingParams(
+        chunk_size=10 * 1024 * 1024,  # 10 MiB chunks (default: 5 MiB)
+        max_chunk_concurrency=3,             # Parallel chunk uploads (default: 1)
+        chunking_mode="auto",                # "auto", "force", or "disabled"
+    ),
+    on_progress=lambda p, t: print(f"{p}/{t} bytes"),
+)
+```
+
+**ChunkingParams options:**
+
+- `chunk_size`: Chunk size in bytes (5-500 MiB, default: 5 MiB)
+- `max_chunk_concurrency`: Number of parallel chunk uploads (default: 1)
+- `chunking_mode`:
+  - `"auto"` (default): Use chunked upload for files >= 5 MiB
+  - `"force"`: Always use chunked upload
+  - `"disabled"`: Always use single request upload
 
 ##### `get_balance(address=None) -> TurboBalanceResponse`
 
@@ -111,6 +184,7 @@ print(f"Other balance: {other_balance.winc} winc")
 ```
 
 **Returns:** `TurboBalanceResponse`
+
 ```python
 @dataclass
 class TurboBalanceResponse:
@@ -135,6 +209,7 @@ print(f"Upload cost: {cost} winc")
 Ethereum signer using ECDSA signatures.
 
 **Parameters:**
+
 - `private_key` (str): Hex private key with or without `0x` prefix
 
 ```python
@@ -146,6 +221,7 @@ signer = EthereumSigner("0x1234567890abcdef...")
 Arweave signer using RSA-PSS signatures.
 
 **Parameters:**
+
 - `jwk` (dict): Arweave wallet in JWK format
 
 ```python
@@ -179,31 +255,102 @@ Create signed headers for authenticated API requests.
 headers = signer.create_signed_headers()
 ```
 
+### Exceptions
+
+The SDK provides specific exceptions for error handling:
+
+```python
+from turbo_sdk import UnderfundedError, ChunkedUploadError
+
+try:
+    result = turbo.upload(large_data)
+except UnderfundedError:
+    print("Insufficient balance - please top up your account")
+except ChunkedUploadError as e:
+    print(f"Upload failed: {e}")
+```
+
+**Exception types:**
+
+- `ChunkedUploadError`: Base exception for chunked upload failures
+- `UnderfundedError`: Account has insufficient balance (HTTP 402)
+- `UploadValidationError`: Upload validation failed (INVALID status)
+- `UploadFinalizationError`: Finalization timed out or failed
 
 ## Developers
 
 ### Setup
 
-1. **Crete a virtual environment:**
+1. **Create a virtual environment:**
 
 ```bash
 python -m venv venv
-source venv/bin/activate 
+source venv/bin/activate
 ```
 
-1. **Install dependencies:**
+2. **Install dependencies:**
 
 ```bash
 pip install -e ".[dev]"
 ```
 
-2. **Run tests:**
+3. **Run tests:**
 
 ```bash
 pytest
 ```
 
-That's it! The test suite includes comprehensive tests for all components without requiring network access.
+With coverage
+
+```bash
+pytest --cov=turbo_sdk
+```
+
+4. **Lint and format:**
+
+```bash
+black turbo_sdk tests
+flake8 turbo_sdk tests
+```
+
+5. **Run performance benchmarks** (requires funded wallet):
+
+```bash
+export TURBO_TEST_WALLET=/path/to/wallet.json
+export TURBO_UPLOAD_URL=https://upload.ardrive.dev  # optional, defaults to testnet
+pytest -m performance -v -s
+```
+
+The test suite includes comprehensive unit tests for all components. Performance tests measure real upload throughput against the Turbo service.
+
+## Publishing
+
+Releases are published to PyPI via the GitHub Actions workflow at `.github/workflows/release.yml`. It runs on `release` events or can be triggered manually via `workflow_dispatch`.
+
+There is no automated versioning. Before publishing, update the `version` field in `pyproject.toml` to reflect the new release:
+
+```toml
+[project]
+version = "0.0.5"
+```
+
+Steps to release:
+
+1. Merge feature branches into `alpha`.
+2. Review the commits and update the `version` field in `pyproject.toml` accordingly.
+3. Push to the `alpha` branch.
+4. Manually run the release workflow at `.github/workflows/release.yml` via `workflow_dispatch`.
+
+The workflow runs tests across Python 3.8-3.12, builds the package, and publishes to PyPI using trusted OIDC publishing.
+
+To publish locally instead:
+
+```bash
+pip install build twine
+python -m build
+twine check dist/*
+twine upload dist/*
+```
 
 ## Acknowledgments
 
