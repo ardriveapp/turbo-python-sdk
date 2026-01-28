@@ -7,7 +7,6 @@ from typing import BinaryIO, Callable, Dict, List, Optional
 
 from base58 import b58encode
 
-from .constants import SIG_CONFIG
 from .create import create_data_header
 from .sign import sign_stream
 from .tags import encode_tags
@@ -240,9 +239,7 @@ class StreamingDataItem:
         if self._header_offset < len(self._header):
             header_remaining = len(self._header) - self._header_offset
             to_read = min(header_remaining, remaining)
-            header_chunk = self._header[
-                self._header_offset : self._header_offset + int(to_read)
-            ]
+            header_chunk = self._header[self._header_offset : self._header_offset + int(to_read)]
             result.extend(header_chunk)
             self._header_offset += len(header_chunk)
             remaining -= len(header_chunk)

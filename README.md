@@ -306,7 +306,14 @@ With coverage
 pytest --cov=turbo_sdk
 ```
 
-4. **Run performance benchmarks** (requires funded wallet):
+4. **Lint and format:**
+
+```bash
+black turbo_sdk tests
+flake8 turbo_sdk tests
+```
+
+5. **Run performance benchmarks** (requires funded wallet):
 
 ```bash
 export TURBO_TEST_WALLET=/path/to/wallet.json
