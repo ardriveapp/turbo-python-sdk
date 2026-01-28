@@ -107,7 +107,10 @@ class Turbo:
             factory = stream_factory
         elif isinstance(data, bytes):
             size = len(data)
-            factory = lambda: io.BytesIO(data)
+
+            def factory():
+                return io.BytesIO(data)
+
         else:
             # data is a BinaryIO – read into bytes so the factory can
             # produce independent streams (sign() closes the signing stream).
@@ -124,7 +127,9 @@ class Turbo:
                     size,
                 )
             raw = data.read()
-            factory = lambda: io.BytesIO(raw)
+
+            def factory():
+                return io.BytesIO(raw)
 
         # Determine chunking mode
         params = chunking or ChunkingParams()
