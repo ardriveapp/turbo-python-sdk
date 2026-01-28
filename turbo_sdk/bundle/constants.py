@@ -1,4 +1,13 @@
-SIG_CONFIG = {
+from typing import Dict, TypedDict
+
+
+class SigConfigEntry(TypedDict):
+    sigLength: int
+    pubLength: int
+    sigName: str
+
+
+SIG_CONFIG: Dict[int, SigConfigEntry] = {
     1: {"sigLength": 512, "pubLength": 512, "sigName": "arweave"},
     2: {"sigLength": 64, "pubLength": 32, "sigName": "ed25519"},
     3: {"sigLength": 65, "pubLength": 65, "sigName": "ethereum"},

@@ -2,7 +2,7 @@ import hashlib
 from typing import BinaryIO, Callable, Optional
 
 
-def deep_hash(data) -> bytearray:
+def deep_hash(data) -> bytes:
     """
     Create a deep hash using the exact Irys/ANS-104 algorithm
     """
@@ -17,7 +17,7 @@ def deep_hash(data) -> bytearray:
         return hashlib.sha384(tagged_hash).digest()
 
 
-def deep_hash_chunks(chunks, acc: bytearray):
+def deep_hash_chunks(chunks, acc: bytes) -> bytes:
     """
     Recursively hash chunks for deep hash algorithm
     """
@@ -28,7 +28,7 @@ def deep_hash_chunks(chunks, acc: bytearray):
     return deep_hash_chunks(chunks[1:], new_acc)
 
 
-def get_signature_data(dataitem) -> bytearray:
+def get_signature_data(dataitem) -> bytes:
     """
     Get the data that needs to be signed for a DataItem
     Using exact Irys implementation
@@ -232,4 +232,4 @@ def sign_stream(
         on_progress=on_progress,
     )
 
-    return signer.sign(signature_data)
+    return bytes(signer.sign(signature_data))

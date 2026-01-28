@@ -1,3 +1,5 @@
+from typing import Any, Union
+
 from turbo_sdk.signers.signer import Signer
 from turbo_sdk.bundle.utils import b64url_decode
 from cryptography.hazmat.primitives import hashes
@@ -7,11 +9,11 @@ import hashlib
 
 
 class ArweaveSigner(Signer):
-    signature_type = 1
-    signature_length = 512
-    owner_length = 512
-    public_key = None
-    private_key = None
+    signature_type: int = 1
+    signature_length: int = 512
+    owner_length: int = 512
+    public_key: bytearray = bytearray()
+    private_key: Any = None
 
     def __init__(self, jwk: dict):
         """
@@ -51,7 +53,7 @@ class ArweaveSigner(Signer):
             raise ValueError(f"Invalid Arweave public key length: {len(n_bytes)} (expected 512)")
         return bytearray(n_bytes)
 
-    def sign(self, message: bytearray) -> bytearray:
+    def sign(self, message: Union[bytes, bytearray]) -> bytearray:
         """Sign using RSA-PSS SHA-256"""
         signature = self.private_key.sign(
             bytes(message),
@@ -61,7 +63,7 @@ class ArweaveSigner(Signer):
         return bytearray(signature)
 
     @staticmethod
-    def verify(pubkey: bytearray, message: bytearray, signature: bytearray) -> bool:
+    def verify(pubkey: Union[bytes, bytearray], message: Union[bytes, bytearray], signature: Union[bytes, bytearray], **opts: Any) -> bool:
         """Verify RSA-PSS signature"""
         try:
             # Convert modulus bytes to RSA public key

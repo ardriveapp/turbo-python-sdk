@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, Union
 import base64
 import secrets
 
@@ -8,7 +8,7 @@ class Signer:
 
     @property
     @abstractmethod
-    def public_key(self) -> bytearray:
+    def public_key(self) -> Union[bytes, bytearray]:
         pass
 
     @property
@@ -27,12 +27,17 @@ class Signer:
         pass
 
     @abstractmethod
-    def sign(self, message: bytearray, **opts: Any) -> bytearray:
+    def sign(self, message: Union[bytes, bytearray]) -> Union[bytes, bytearray]:
         pass
 
+    @staticmethod
     @abstractmethod
-    # @staticmethod
-    def verify(pubkey: bytearray, message: bytearray, signature: bytearray, **opts: Any) -> bool:
+    def verify(
+        pubkey: Union[bytes, bytearray],
+        message: Union[bytes, bytearray],
+        signature: Union[bytes, bytearray],
+        **opts: Any,
+    ) -> bool:
         pass
 
     @abstractmethod

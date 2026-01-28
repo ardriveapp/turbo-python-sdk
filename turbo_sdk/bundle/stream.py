@@ -144,15 +144,17 @@ class StreamingDataItem:
 
     @property
     def signature_type(self) -> int:
-        if not self._signed:
+        signer = self._signer
+        if signer is None:
             raise RuntimeError("Must call sign() first")
-        return self._signer.signature_type
+        return int(signer.signature_type)
 
     @property
     def raw_signature(self) -> bytes:
-        if not self._signed:
+        signature = self._signature
+        if signature is None:
             raise RuntimeError("Must call sign() first")
-        return self._signature
+        return signature
 
     @property
     def signature(self) -> bytes:
@@ -168,9 +170,10 @@ class StreamingDataItem:
 
     @property
     def raw_owner(self) -> bytes:
-        if not self._signed:
+        signer = self._signer
+        if signer is None:
             raise RuntimeError("Must call sign() first")
-        return self._signer.public_key
+        return bytes(signer.public_key)
 
     @property
     def owner(self) -> bytes:
@@ -182,9 +185,10 @@ class StreamingDataItem:
 
     @property
     def raw_anchor(self) -> bytes:
-        if not self._signed:
+        anchor = self._anchor
+        if anchor is None:
             raise RuntimeError("Must call sign() first")
-        return self._anchor
+        return anchor
 
     @property
     def tags(self) -> List[Dict[str, str]]:
@@ -193,16 +197,18 @@ class StreamingDataItem:
     @property
     def total_size(self) -> int:
         """Total size in bytes (header + data). Must call sign() first."""
-        if not self._signed:
+        header = self._header
+        if header is None:
             raise RuntimeError("Must call sign() first")
-        return len(self._header) + self._data_size
+        return len(header) + self._data_size
 
     @property
     def header_size(self) -> int:
         """Size of the header in bytes. Must call sign() first."""
-        if not self._signed:
+        header = self._header
+        if header is None:
             raise RuntimeError("Must call sign() first")
-        return len(self._header)
+        return len(header)
 
     def read(self, size: int = -1) -> bytes:
         """
@@ -220,7 +226,9 @@ class StreamingDataItem:
         Raises:
             RuntimeError: If sign() has not been called
         """
-        if not self._signed:
+        header = self._header
+        data_stream = self._data_stream
+        if header is None or data_stream is None:
             raise RuntimeError("Must call sign() first")
 
         if size == 0:
@@ -236,10 +244,10 @@ class StreamingDataItem:
             remaining = size
 
         # Read from header first
-        if self._header_offset < len(self._header):
-            header_remaining = len(self._header) - self._header_offset
+        if self._header_offset < len(header):
+            header_remaining = len(header) - self._header_offset
             to_read = min(header_remaining, remaining)
-            header_chunk = self._header[self._header_offset : self._header_offset + int(to_read)]
+            header_chunk = header[self._header_offset : self._header_offset + int(to_read)]
             result.extend(header_chunk)
             self._header_offset += len(header_chunk)
             remaining -= len(header_chunk)
@@ -247,9 +255,9 @@ class StreamingDataItem:
         # Then read from data stream
         if remaining > 0:
             if remaining == float("inf"):
-                data_chunk = self._data_stream.read()
+                data_chunk = data_stream.read()
             else:
-                data_chunk = self._data_stream.read(int(remaining))
+                data_chunk = data_stream.read(int(remaining))
             if data_chunk:
                 result.extend(data_chunk)
 

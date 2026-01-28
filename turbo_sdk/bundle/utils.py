@@ -1,4 +1,5 @@
 import base64
+from typing import Union
 
 
 def b64url_decode(s: str) -> bytes:
@@ -9,13 +10,13 @@ def b64url_decode(s: str) -> bytes:
     return base64.urlsafe_b64decode(s)
 
 
-def set_bytes(dest: bytearray, src: bytearray, offset: int):
+def set_bytes(dest: bytearray, src: Union[bytes, bytearray], offset: int) -> None:
     """Set bytes in destination array at offset"""
     for i in range(offset, offset + len(src), 1):
         dest[i] = src[i - offset]
 
 
-def byte_array_to_long(byte_array: bytearray):
+def byte_array_to_long(byte_array: Union[bytes, bytearray]) -> int:
     """Convert byte array to long using little-endian"""
     value = 0
     for i in range(len(byte_array) - 1, -1, -1):

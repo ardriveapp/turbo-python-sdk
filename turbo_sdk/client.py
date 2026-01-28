@@ -126,7 +126,7 @@ class Turbo:
                     size,
                     size,
                 )
-            raw = data.read()
+            raw = data.read()  # type: ignore[union-attr]
 
             def factory():
                 return io.BytesIO(raw)
@@ -218,6 +218,7 @@ class Turbo:
         total_size = streaming_item.total_size
 
         # Create chunked uploader
+        assert self.token is not None
         uploader = ChunkedUploader(
             upload_url=self.upload_url,
             token=self.token,
@@ -226,7 +227,7 @@ class Turbo:
 
         # Upload using the streaming item as a file-like object
         return uploader.upload(
-            data=streaming_item,
+            data=streaming_item,  # type: ignore[arg-type]
             total_size=total_size,
             on_progress=on_progress,
         )

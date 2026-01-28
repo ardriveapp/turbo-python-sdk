@@ -1,5 +1,5 @@
 import codecs
-from typing import Any
+from typing import Any, Union
 from turbo_sdk.signers.signer import Signer
 from turbo_sdk.bundle.constants import SIG_CONFIG
 from eth_account import Account
@@ -9,11 +9,11 @@ from eth_keys import keys
 
 
 class EthereumSigner(Signer):
-    public_key = None
-    private_key = None
-    signature_type = 3
-    signature_length = SIG_CONFIG[3]["sigLength"]
-    owner_length = SIG_CONFIG[3]["pubLength"]
+    public_key: bytes = b""
+    private_key: Any = None
+    signature_type: int = 3
+    signature_length: int = SIG_CONFIG[3]["sigLength"]
+    owner_length: int = SIG_CONFIG[3]["pubLength"]
 
     def __init__(self, private_key: str):
         """
@@ -27,7 +27,7 @@ class EthereumSigner(Signer):
         self.private_key = keys.PrivateKey(dec)
         self.public_key = b"\x04" + self.private_key.public_key.to_bytes()
 
-    def sign(self, message: bytearray) -> bytearray:
+    def sign(self, message: Union[bytes, bytearray]) -> bytearray:
         """
         Sign a message using Ethereum's personal_sign format
 
@@ -43,17 +43,18 @@ class EthereumSigner(Signer):
         return bytearray.fromhex(signature[2:] if signature.startswith("0x") else signature)
 
     @staticmethod
-    def verify(pubkey: bytearray, message: bytearray, signature: bytearray, **opts: Any) -> bool:
+    def verify(pubkey: Union[bytes, bytearray], message: Union[bytes, bytearray], signature: Union[bytes, bytearray], **opts: Any) -> bool:
         msg = encode_defunct(primitive=message)
         msg_hash = _hash_eip191_message(msg)
         # trim pubkey
-        pubkey = keys.PublicKey(pubkey if len(pubkey) == 64 else pubkey[1:])
+        pk = keys.PublicKey(pubkey if len(pubkey) == 64 else pubkey[1:])
         # standardize v value
-        signature[64] = to_standard_v(signature[64])
-        signature = keys.Signature(signature)
-        valid = keys.ecdsa_verify(msg_hash, signature, pubkey)
+        sig_array = bytearray(signature)
+        sig_array[64] = to_standard_v(sig_array[64])
+        sig = keys.Signature(sig_array)
+        valid: bool = keys.ecdsa_verify(msg_hash, sig, pk)  # type: ignore[arg-type]
         return valid
 
     def get_wallet_address(self) -> str:
         """Get the Ethereum wallet address (checksum format)"""
-        return self.private_key.public_key.to_checksum_address()
+        return str(self.private_key.public_key.to_checksum_address())

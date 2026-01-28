@@ -17,7 +17,7 @@ class DataItem:
 
     def __init__(self, buffer: bytearray):
         self.binary = buffer
-        self._id = []
+        self._id = b""
 
     @staticmethod
     def is_data_item(item: Any) -> bool:
@@ -75,7 +75,7 @@ class DataItem:
         return self.binary[2 : 2 + self.signature_length]
 
     @property
-    def signature(self) -> bytearray:
+    def signature(self) -> bytes:
         return base64.urlsafe_b64encode(self.raw_signature)
 
     @property
@@ -142,7 +142,7 @@ class DataItem:
     def get_raw(self) -> bytearray:
         return self.binary
 
-    def sign(self, signer: "Signer") -> bytearray:
+    def sign(self, signer: "Signer") -> bytes:
         from .sign import sign
 
         self._id = sign(self, signer)
