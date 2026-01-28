@@ -1,5 +1,23 @@
 # turbo-python-sdk
 
+## 0.0.5
+
+### Added
+
+- Multipart upload support with progress callbacks
+- True streaming upload support with `StreamingDataItem`
+- Stream factory pattern for reliable stream handling during signing
+
+### Fixed
+
+- Read `BinaryIO` into bytes so stream factory survives `sign()` close
+
+### Changed
+
+- Refactored signer from constructor to `sign()` method on `StreamingDataItem`
+- Updated mypy Python version target
+- Pinned `black` dependency version to avoid failures with Python 3.11
+
 ## 0.0.4
 
 ### Added
