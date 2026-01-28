@@ -105,13 +105,13 @@ class Turbo:
             size = len(data)
             factory = lambda: io.BytesIO(data)
         else:
-            # data is a BinaryIO
+            # data is a BinaryIO – read into bytes so the factory can
+            # produce independent streams (sign() closes the signing stream).
             if data_size is None:
                 raise ValueError("data_size is required when data is a file-like object")
             size = data_size
-            # Capture data in closure to avoid late binding issues
-            stream = data
-            factory = lambda: (stream.seek(0), stream)[1]
+            raw = data.read()
+            factory = lambda: io.BytesIO(raw)
 
         # Determine chunking mode
         params = chunking or ChunkingParams()
