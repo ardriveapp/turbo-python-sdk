@@ -10,7 +10,7 @@ ProgressCallback = Callable[[int, int], None]  # (processed_bytes, total_bytes)
 class ChunkingParams:
     """Configuration for chunked/multipart uploads"""
 
-    chunk_byte_count: int = 5 * 1024 * 1024  # 5 MiB default
+    chunk_size: int = 5 * 1024 * 1024  # 5 MiB default
     max_chunk_concurrency: int = 1
     chunking_mode: ChunkingMode = "auto"
     max_finalize_ms: int = 150_000  # 2.5 minutes per GiB
@@ -18,8 +18,8 @@ class ChunkingParams:
     def __post_init__(self):
         min_chunk = 5 * 1024 * 1024  # 5 MiB
         max_chunk = 500 * 1024 * 1024  # 500 MiB
-        if not (min_chunk <= self.chunk_byte_count <= max_chunk):
-            raise ValueError(f"chunk_byte_count must be between {min_chunk} and {max_chunk} bytes")
+        if not (min_chunk <= self.chunk_size <= max_chunk):
+            raise ValueError(f"chunk_size must be between {min_chunk} and {max_chunk} bytes")
         if self.max_chunk_concurrency < 1:
             raise ValueError("max_chunk_concurrency must be at least 1")
 

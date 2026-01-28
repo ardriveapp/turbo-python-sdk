@@ -1,4 +1,5 @@
 import io
+import logging
 from typing import BinaryIO, List, Dict, Optional, Union
 
 import requests
@@ -11,6 +12,9 @@ from .types import (
 )
 from .bundle import create_data, sign, StreamingDataItem, StreamFactory
 from .chunked import ChunkedUploader
+
+
+logger = logging.getLogger(__name__)
 
 
 class Turbo:
@@ -110,6 +114,15 @@ class Turbo:
             if data_size is None:
                 raise ValueError("data_size is required when data is a file-like object")
             size = data_size
+            if size >= self.CHUNKING_THRESHOLD:
+                logger.warning(
+                    "Large file (%d bytes) passed as data will be read entirely "
+                    "into memory. Consider providing stream_factory instead, e.g. "
+                    "turbo.upload(stream_factory=lambda: open('my-file.bin', 'rb'), "
+                    "data_size=%d)",
+                    size,
+                    size,
+                )
             raw = data.read()
             factory = lambda: io.BytesIO(raw)
 

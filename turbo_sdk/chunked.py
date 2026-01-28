@@ -82,7 +82,7 @@ class ChunkedUploader:
     def initiate(self) -> ChunkedUploadInit:
         """Initiate a new chunked upload session"""
         url = f"{self.upload_url}/chunks/{self.token}/-1/-1"
-        params = {"chunkSize": self.params.chunk_byte_count}
+        params = {"chunkSize": self.params.chunk_size}
 
         response = self._session.get(url, params=params)
 
@@ -92,7 +92,7 @@ class ChunkedUploader:
                 id=data["id"],
                 min=data["min"],
                 max=data["max"],
-                chunk_size=data.get("chunkSize", self.params.chunk_byte_count),
+                chunk_size=data.get("chunkSize", self.params.chunk_size),
             )
         elif response.status_code == 503:
             raise ChunkedUploadError(f"Service unavailable: {response.text}")
@@ -192,7 +192,7 @@ class ChunkedUploader:
         on_progress: Optional[ProgressCallback] = None,
     ) -> None:
         """Upload chunks sequentially"""
-        chunk_size = self.params.chunk_byte_count
+        chunk_size = self.params.chunk_size
         offset = 0
         processed = 0
 
@@ -222,7 +222,7 @@ class ChunkedUploader:
         on_progress: Optional[ProgressCallback] = None,
     ) -> None:
         """Upload chunks concurrently (requires bytes, not stream)"""
-        chunk_size = self.params.chunk_byte_count
+        chunk_size = self.params.chunk_size
         max_workers = self.params.max_chunk_concurrency
 
         # Build list of chunks

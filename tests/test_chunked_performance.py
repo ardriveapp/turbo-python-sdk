@@ -147,7 +147,7 @@ class TestUploadPerformance:
             tags=[{"name": "Test", "value": f"perf-chunked-{label}"}],
             chunking=ChunkingParams(
                 chunking_mode="force",
-                chunk_byte_count=chunk_size,
+                chunk_size=chunk_size,
                 max_chunk_concurrency=concurrency,
             ),
         )

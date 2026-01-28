@@ -21,7 +21,7 @@ class TestChunkingParams:
     def test_default_values(self):
         """Test default parameter values"""
         params = ChunkingParams()
-        assert params.chunk_byte_count == 5 * 1024 * 1024  # 5 MiB
+        assert params.chunk_size == 5 * 1024 * 1024  # 5 MiB
         assert params.max_chunk_concurrency == 1
         assert params.chunking_mode == "auto"
         assert params.max_finalize_ms == 150_000
@@ -29,35 +29,35 @@ class TestChunkingParams:
     def test_custom_values(self):
         """Test custom parameter values"""
         params = ChunkingParams(
-            chunk_byte_count=10 * 1024 * 1024,
+            chunk_size=10 * 1024 * 1024,
             max_chunk_concurrency=4,
             chunking_mode="force",
             max_finalize_ms=300_000,
         )
-        assert params.chunk_byte_count == 10 * 1024 * 1024
+        assert params.chunk_size == 10 * 1024 * 1024
         assert params.max_chunk_concurrency == 4
         assert params.chunking_mode == "force"
         assert params.max_finalize_ms == 300_000
 
     def test_chunk_size_validation_too_small(self):
         """Test validation rejects chunk size below 5 MiB"""
-        with pytest.raises(ValueError, match="chunk_byte_count must be between"):
-            ChunkingParams(chunk_byte_count=1024 * 1024)  # 1 MiB
+        with pytest.raises(ValueError, match="chunk_size must be between"):
+            ChunkingParams(chunk_size=1024 * 1024)  # 1 MiB
 
     def test_chunk_size_validation_too_large(self):
         """Test validation rejects chunk size above 500 MiB"""
-        with pytest.raises(ValueError, match="chunk_byte_count must be between"):
-            ChunkingParams(chunk_byte_count=600 * 1024 * 1024)  # 600 MiB
+        with pytest.raises(ValueError, match="chunk_size must be between"):
+            ChunkingParams(chunk_size=600 * 1024 * 1024)  # 600 MiB
 
     def test_chunk_size_at_boundaries(self):
         """Test chunk size at valid boundaries"""
         # Minimum boundary
-        params_min = ChunkingParams(chunk_byte_count=5 * 1024 * 1024)
-        assert params_min.chunk_byte_count == 5 * 1024 * 1024
+        params_min = ChunkingParams(chunk_size=5 * 1024 * 1024)
+        assert params_min.chunk_size == 5 * 1024 * 1024
 
         # Maximum boundary
-        params_max = ChunkingParams(chunk_byte_count=500 * 1024 * 1024)
-        assert params_max.chunk_byte_count == 500 * 1024 * 1024
+        params_max = ChunkingParams(chunk_size=500 * 1024 * 1024)
+        assert params_max.chunk_size == 500 * 1024 * 1024
 
     def test_concurrency_validation(self):
         """Test validation rejects concurrency below 1"""
@@ -81,7 +81,7 @@ class TestChunkedUploader:
         """Test uploader initialization"""
         assert uploader.upload_url == "https://upload.test.io"
         assert uploader.token == "arweave"
-        assert uploader.params.chunk_byte_count == 5 * 1024 * 1024
+        assert uploader.params.chunk_size == 5 * 1024 * 1024
 
     def test_chunking_version_header(self, uploader):
         """Test x-chunking-version header is set"""
@@ -402,7 +402,7 @@ class TestChunkedUploaderSequentialUpload:
         mock_session.headers = {}
         mock_session_class.return_value = mock_session
 
-        params = ChunkingParams(chunk_byte_count=5 * 1024 * 1024)
+        params = ChunkingParams(chunk_size=5 * 1024 * 1024)
         uploader = ChunkedUploader(
             upload_url="https://upload.test.io",
             token="arweave",
@@ -433,7 +433,7 @@ class TestChunkedUploaderSequentialUpload:
         mock_session.headers = {}
         mock_session_class.return_value = mock_session
 
-        params = ChunkingParams(chunk_byte_count=5 * 1024 * 1024)
+        params = ChunkingParams(chunk_size=5 * 1024 * 1024)
         uploader = ChunkedUploader(
             upload_url="https://upload.test.io",
             token="arweave",
@@ -462,7 +462,7 @@ class TestChunkedUploaderConcurrentUpload:
         mock_session_class.return_value = mock_session
 
         params = ChunkingParams(
-            chunk_byte_count=5 * 1024 * 1024,
+            chunk_size=5 * 1024 * 1024,
             max_chunk_concurrency=3,
         )
         uploader = ChunkedUploader(
