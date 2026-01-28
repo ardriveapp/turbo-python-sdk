@@ -192,12 +192,12 @@ class Turbo:
         streaming_item = StreamingDataItem(
             stream_factory=stream_factory,
             data_size=size,
-            signer=self.signer,
             tags=tags,
         )
 
-        # Prepare signs the data (streaming) and builds the header
-        total_size = streaming_item.prepare()
+        # Sign the data (streaming) and build the header
+        streaming_item.sign(self.signer)
+        total_size = streaming_item.total_size
 
         # Create chunked uploader
         uploader = ChunkedUploader(

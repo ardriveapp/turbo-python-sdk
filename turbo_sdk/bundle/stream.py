@@ -1,8 +1,13 @@
 """Streaming DataItem support for large file uploads."""
 
+import base64
+import hashlib
 import os
 from typing import BinaryIO, Callable, Dict, List, Optional
 
+from base58 import b58encode
+
+from .constants import SIG_CONFIG
 from .create import create_data_header
 from .sign import sign_stream
 from .tags import encode_tags
@@ -21,6 +26,10 @@ class StreamingDataItem:
     2. Builds the DataItem header with the computed signature
     3. Provides a read() interface that returns header bytes first, then data
 
+    After sign(), exposes the same properties as DataItem:
+    id, raw_id, signature, raw_signature, signature_type,
+    owner, raw_owner, raw_target, raw_anchor, tags.
+
     Uses a stream_factory pattern: a callable that returns a fresh stream
     each time it's called. This allows:
     - Non-seekable streams (generators, network streams, etc.)
@@ -34,10 +43,9 @@ class StreamingDataItem:
         streaming = StreamingDataItem(
             stream_factory=open_file,
             data_size=file_size,
-            signer=signer,
             tags=tags,
         )
-        total_size = streaming.prepare()
+        streaming.sign(signer)
         # Now use streaming.read() to get chunks for upload
     """
 
@@ -45,7 +53,6 @@ class StreamingDataItem:
         self,
         stream_factory: StreamFactory,
         data_size: int,
-        signer,
         tags: Optional[List[Dict[str, str]]] = None,
         on_sign_progress: Optional[Callable[[int, int], None]] = None,
     ):
@@ -55,34 +62,39 @@ class StreamingDataItem:
         Args:
             stream_factory: A callable that returns a fresh BinaryIO stream
             data_size: Total size of the data in bytes
-            signer: The signer object with signature_type, public_key, sign()
             tags: Optional list of tags as dictionaries with 'name' and 'value'
             on_sign_progress: Optional callback(processed, total) during signing
         """
         self._stream_factory = stream_factory
         self._data_size = data_size
-        self._signer = signer
         self._tags = tags or []
         self._on_sign_progress = on_sign_progress
 
         self._header: Optional[bytes] = None
         self._header_offset = 0
-        self._prepared = False
+        self._signed = False
+        self._signer = None
+        self._signature: Optional[bytes] = None
         self._anchor: Optional[bytes] = None
         self._data_stream: Optional[BinaryIO] = None
 
-    def prepare(self) -> int:
+    def sign(self, signer) -> bytes:
         """
-        Sign the data (streaming) and prepare the header.
+        Sign the data (streaming) and build the header.
 
         This creates a fresh stream from the factory to compute the signature,
         then creates another fresh stream for the upload phase.
 
+        Args:
+            signer: The signer object with signature_type, public_key, sign()
+
         Returns:
-            Total size in bytes (header + data)
+            The raw ID (SHA-256 of the signature)
         """
-        if self._prepared:
-            return len(self._header) + self._data_size
+        if self._signed:
+            return self.raw_id
+
+        self._signer = signer
 
         # Generate random anchor
         self._anchor = os.urandom(32)
@@ -94,15 +106,15 @@ class StreamingDataItem:
         sign_stream_obj = self._stream_factory()
 
         # Compute signature by streaming through data
-        signature = sign_stream(
-            signature_type=self._signer.signature_type,
-            raw_owner=self._signer.public_key,
+        self._signature = sign_stream(
+            signature_type=signer.signature_type,
+            raw_owner=signer.public_key,
             raw_target=b"",
             raw_anchor=self._anchor,
             raw_tags=encoded_tags,
             data_stream=sign_stream_obj,
             data_size=self._data_size,
-            signer=self._signer,
+            signer=signer,
             on_progress=self._on_sign_progress,
         )
 
@@ -118,27 +130,79 @@ class StreamingDataItem:
 
         # Build header with the computed signature
         self._header = create_data_header(
-            signer=self._signer,
-            signature=signature,
+            signer=signer,
+            signature=self._signature,
             tags=self._tags,
             anchor=self._anchor,
         )
 
-        self._prepared = True
-        return len(self._header) + self._data_size
+        self._signed = True
+        return self.raw_id
+
+    @property
+    def is_signed(self) -> bool:
+        return self._signed
+
+    @property
+    def signature_type(self) -> int:
+        if not self._signed:
+            raise RuntimeError("Must call sign() first")
+        return self._signer.signature_type
+
+    @property
+    def raw_signature(self) -> bytes:
+        if not self._signed:
+            raise RuntimeError("Must call sign() first")
+        return self._signature
+
+    @property
+    def signature(self) -> bytes:
+        return base64.urlsafe_b64encode(self.raw_signature)
+
+    @property
+    def raw_id(self) -> bytes:
+        return hashlib.sha256(self.raw_signature).digest()
+
+    @property
+    def id(self) -> str:
+        return b58encode(self.raw_id).decode("utf-8")
+
+    @property
+    def raw_owner(self) -> bytes:
+        if not self._signed:
+            raise RuntimeError("Must call sign() first")
+        return self._signer.public_key
+
+    @property
+    def owner(self) -> bytes:
+        return base64.urlsafe_b64encode(self.raw_owner)
+
+    @property
+    def raw_target(self) -> bytes:
+        return b""
+
+    @property
+    def raw_anchor(self) -> bytes:
+        if not self._signed:
+            raise RuntimeError("Must call sign() first")
+        return self._anchor
+
+    @property
+    def tags(self) -> List[Dict[str, str]]:
+        return self._tags
 
     @property
     def total_size(self) -> int:
-        """Total size in bytes (header + data). Must call prepare() first."""
-        if not self._prepared:
-            raise RuntimeError("Must call prepare() first")
+        """Total size in bytes (header + data). Must call sign() first."""
+        if not self._signed:
+            raise RuntimeError("Must call sign() first")
         return len(self._header) + self._data_size
 
     @property
     def header_size(self) -> int:
-        """Size of the header in bytes. Must call prepare() first."""
-        if not self._prepared:
-            raise RuntimeError("Must call prepare() first")
+        """Size of the header in bytes. Must call sign() first."""
+        if not self._signed:
+            raise RuntimeError("Must call sign() first")
         return len(self._header)
 
     def read(self, size: int = -1) -> bytes:
@@ -155,10 +219,10 @@ class StreamingDataItem:
             Bytes read (may be less than size if at end)
 
         Raises:
-            RuntimeError: If prepare() has not been called
+            RuntimeError: If sign() has not been called
         """
-        if not self._prepared:
-            raise RuntimeError("Must call prepare() first")
+        if not self._signed:
+            raise RuntimeError("Must call sign() first")
 
         if size == 0:
             return b""
@@ -194,18 +258,14 @@ class StreamingDataItem:
 
         return bytes(result)
 
-    def seekable(self) -> bool:
-        """Return False - StreamingDataItem is forward-only after prepare()."""
-        return False
-
     def reset(self) -> None:
         """
         Reset the streaming position to allow re-reading.
 
         Creates a fresh data stream from the factory and resets the header offset.
         """
-        if not self._prepared:
-            raise RuntimeError("Must call prepare() first")
+        if not self._signed:
+            raise RuntimeError("Must call sign() first")
         self._header_offset = 0
         # Close existing stream if it has a close method
         if self._data_stream is not None and hasattr(self._data_stream, "close"):
