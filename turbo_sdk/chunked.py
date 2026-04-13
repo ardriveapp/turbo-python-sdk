@@ -154,6 +154,10 @@ class ChunkedUploader:
                 data_caches=receipt.get("dataCaches", []),
                 fast_finality_indexes=receipt.get("fastFinalityIndexes", []),
                 winc=receipt.get("winc"),
+                signature=receipt.get("signature"),
+                public=receipt.get("public"),
+                version=receipt.get("version"),
+                deadline_height=receipt.get("deadlineHeight"),
             )
         elif response.status_code == 404:
             raise ChunkedUploadError("Upload session not found")
@@ -300,6 +304,11 @@ class ChunkedUploader:
                 data_caches=status.data_caches,
                 fast_finality_indexes=status.fast_finality_indexes,
                 winc=status.winc or "0",
+                timestamp=status.timestamp,
+                signature=status.signature,
+                public=status.public,
+                version=status.version,
+                deadline_height=status.deadline_height,
             )
         except Exception:
             # Could implement cleanup here in future

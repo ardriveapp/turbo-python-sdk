@@ -192,6 +192,11 @@ class Turbo:
                 data_caches=result.get("dataCaches", []),
                 fast_finality_indexes=result.get("fastFinalityIndexes", []),
                 winc=result.get("winc", "0"),
+                timestamp=result.get("timestamp"),
+                signature=result.get("signature"),
+                public=result.get("public"),
+                version=result.get("version"),
+                deadline_height=result.get("deadlineHeight"),
             )
         else:
             raise Exception(f"Upload failed: {response.status_code} - {response.text}")

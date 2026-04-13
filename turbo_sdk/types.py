@@ -45,6 +45,10 @@ class TurboUploadStatus:
     data_caches: List[str] = field(default_factory=list)
     fast_finality_indexes: List[str] = field(default_factory=list)
     winc: Optional[str] = None
+    signature: Optional[str] = None
+    public: Optional[str] = None
+    version: Optional[str] = None
+    deadline_height: Optional[int] = None
 
 
 @dataclass
@@ -56,6 +60,11 @@ class TurboUploadResponse:
     data_caches: List[str]  # Cache endpoints
     fast_finality_indexes: List[str]  # Fast finality
     winc: str  # Winston credits cost
+    timestamp: Optional[int] = None  # Receipt creation time (ms)
+    signature: Optional[str] = None  # Base64URL receipt signature
+    public: Optional[str] = None  # Signer's public key
+    version: Optional[str] = None  # Receipt schema version
+    deadline_height: Optional[int] = None  # Block height context
 
 
 @dataclass
