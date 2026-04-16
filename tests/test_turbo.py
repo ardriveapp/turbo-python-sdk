@@ -289,6 +289,11 @@ class TestTurboUpload:
             "dataCaches": ["cache1"],
             "fastFinalityIndexes": ["index1"],
             "winc": "1000",
+            "timestamp": 1776068746997,
+            "signature": "test_sig",
+            "public": "test_pub",
+            "version": "1.0.0",
+            "deadlineHeight": 1234567,
         }
         mock_post.return_value = mock_response
 
@@ -296,6 +301,11 @@ class TestTurboUpload:
 
         assert result.id == "test_tx_id"
         assert result.owner == "test_owner"
+        assert result.timestamp == 1776068746997
+        assert result.signature == "test_sig"
+        assert result.public == "test_pub"
+        assert result.version == "1.0.0"
+        assert result.deadline_height == 1234567
         mock_post.assert_called_once()
 
     @patch("turbo_sdk.client.requests.post")

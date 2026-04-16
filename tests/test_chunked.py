@@ -254,6 +254,10 @@ class TestChunkedUploader:
                 "dataCaches": ["arweave.net"],
                 "fastFinalityIndexes": ["arweave.net"],
                 "winc": "1000",
+                "signature": "receipt_sig",
+                "public": "receipt_pub",
+                "version": "1.0.0",
+                "deadlineHeight": 999999,
             },
         }
 
@@ -274,6 +278,10 @@ class TestChunkedUploader:
         assert status.id == "tx-id"
         assert status.owner == "owner-address"
         assert status.data_caches == ["arweave.net"]
+        assert status.signature == "receipt_sig"
+        assert status.public == "receipt_pub"
+        assert status.version == "1.0.0"
+        assert status.deadline_height == 999999
 
     @patch("turbo_sdk.chunked.requests.Session")
     def test_get_status_validating(self, mock_session_class):
