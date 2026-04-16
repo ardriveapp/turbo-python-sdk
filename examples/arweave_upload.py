@@ -63,6 +63,18 @@ def main():
         print(f"🔗 URI: ar://{result.id}")
         print(f"💸 Cost: {result.winc} winc")
         print(f"🌐 Gateway URL: https://arweave.net/{result.id}")
+        
+        # v0.0.6 fields
+        if result.timestamp:
+            print(f"⏰ Timestamp: {result.timestamp}")
+        if result.signature:
+            print(f"✍️  Signature: {result.signature}")
+        if result.public:
+            print(f"🔑 Public Key: {result.public}")
+        if result.version:
+            print(f"📋 Version: {result.version}")
+        if result.deadline_height:
+            print(f"📏 Deadline Height: {result.deadline_height}")
 
     except Exception as e:
         print(f"❌ Upload failed: {e}")
