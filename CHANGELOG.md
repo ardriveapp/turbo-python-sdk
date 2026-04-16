@@ -1,5 +1,14 @@
 # turbo-python-sdk
 
+## 0.0.6
+
+### Added
+
+- Added timestamp, signature, public, version, and deadline_height to TurboUploadResponse and TurboUploadStatus data classes
+- Extracted receipt fields in `_upload_single()` from API response JSON (previously discarded)
+- Extracted receipt fields in `get_status()` from chunked upload receipt dict
+- Carried all fields through the `TurboUploadStatus` → `TurboUploadResponse` conversion
+
 ## 0.0.5
 
 ### Added
