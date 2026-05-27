@@ -63,7 +63,7 @@ def main():
         print(f"🔗 URI: ar://{result.id}")
         print(f"💸 Cost: {result.winc} winc")
         print(f"🌐 Gateway URL: https://arweave.net/{result.id}")
-        
+
         # v0.0.6 fields
         if result.timestamp:
             print(f"⏰ Timestamp: {result.timestamp}")
