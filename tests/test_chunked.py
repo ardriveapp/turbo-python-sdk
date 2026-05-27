@@ -5,7 +5,12 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 import json
 
-from turbo_sdk.types import ChunkingParams, TurboUploadStatus, ChunkedUploadInit
+from turbo_sdk.types import (
+    ChunkingParams,
+    TurboUploadStatus,
+    ChunkedUploadInit,
+    TurboUploadResponse,
+)
 from turbo_sdk.chunked import (
     ChunkedUploader,
     ChunkedUploadError,
@@ -282,6 +287,53 @@ class TestChunkedUploader:
         assert status.public == "receipt_pub"
         assert status.version == "1.0.0"
         assert status.deadline_height == 999999
+
+    @patch("turbo_sdk.chunked.requests.Session")
+    def test_upload_carries_receipt_fields_to_response(self, mock_session_class):
+        """Issue #5: the chunked upload's final TurboUploadResponse must carry the
+        receipt fields (timestamp/signature/public/version/deadline_height) through
+        the TurboUploadStatus -> TurboUploadResponse conversion, not drop them."""
+        mock_session = Mock()
+        mock_session.headers = {}
+        mock_session_class.return_value = mock_session
+
+        uploader = ChunkedUploader(
+            upload_url="https://upload.test.io",
+            token="solana",
+            chunking_params=ChunkingParams(),
+        )
+
+        # Stub the pipeline so upload() reaches the response construction with a
+        # known finalized status carrying every receipt field.
+        finalized = TurboUploadStatus(
+            status="FINALIZED",
+            timestamp=1776068746997,
+            id="tx-id",
+            owner="owner-addr",
+            data_caches=["cache.example"],
+            fast_finality_indexes=["index.example"],
+            winc="0",
+            signature="receipt_sig",
+            public="receipt_pub",
+            version="1.0.0",
+            deadline_height=999999,
+        )
+        uploader.initiate = Mock(return_value=Mock(id="upload-id"))
+        uploader.upload_chunks_sequential = Mock()
+        uploader.upload_chunks_concurrent = Mock()
+        uploader.finalize = Mock()
+        uploader.poll_for_finalization = Mock(return_value=finalized)
+
+        result = uploader.upload(b"x" * 1024)
+
+        assert isinstance(result, TurboUploadResponse)
+        assert result.id == "tx-id"
+        assert result.owner == "owner-addr"
+        assert result.timestamp == 1776068746997
+        assert result.signature == "receipt_sig"
+        assert result.public == "receipt_pub"
+        assert result.version == "1.0.0"
+        assert result.deadline_height == 999999
 
     @patch("turbo_sdk.chunked.requests.Session")
     def test_get_status_validating(self, mock_session_class):
