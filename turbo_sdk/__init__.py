@@ -31,7 +31,7 @@ from .types import (
     ProgressCallback,
     ChunkingMode,
 )
-from .signers import EthereumSigner, ArweaveSigner
+from .signers import EthereumSigner, ArweaveSigner, SolanaSigner
 from .chunked import (
     ChunkedUploader,
     ChunkedUploadError,
@@ -63,4 +63,5 @@ __all__ = [
     # Signers
     "EthereumSigner",
     "ArweaveSigner",
+    "SolanaSigner",
 ]

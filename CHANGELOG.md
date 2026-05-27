@@ -1,5 +1,16 @@
 # turbo-python-sdk
 
+## 0.1.0
+
+### Added
+
+- `SolanaSigner` for signing data items with a Solana (ed25519) wallet. Accepts a Solana CLI `id.json` (via `SolanaSigner.from_file()` or a 64-int list), a base58-encoded secret key, a raw 64-byte secret key, or a 32-byte seed; the wallet address is the base58 of the ed25519 public key. Uses ANS-104 signature type 2 (raw ED25519), which Turbo bills as the `solana` token. Verified end-to-end against the upload backend and cross-checked byte-for-byte with `@dha-team/arbundles`.
+- `TOKEN_MAP` entry mapping signature type 2 to the `solana` token so `Turbo(SolanaSigner(...))` initializes correctly.
+
+### Fixed
+
+- Aligned `pyproject.toml` version (was `0.0.6`) with `turbo_sdk.__version__` (`0.1.0`), which had drifted apart.
+
 ## 0.0.6
 
 ### Added

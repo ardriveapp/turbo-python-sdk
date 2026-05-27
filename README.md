@@ -57,6 +57,30 @@ result = turbo.upload(b"Hello from Arweave!", tags=[
 print(f"✅ Uploaded! URI: ar://{result.id}")
 ```
 
+#### Solana Usage
+
+```python
+from turbo_sdk import Turbo, SolanaSigner
+
+# Load a Solana CLI keypair (id.json: JSON array of 64 ints)
+signer = SolanaSigner.from_file("~/.config/solana/id.json")
+
+# Or construct directly from a raw 64-byte secret key, a 32-byte seed,
+# a CLI keypair list/JSON string, or a base58-encoded secret key:
+#   signer = SolanaSigner(secret_bytes)
+#   signer = SolanaSigner("4Nd1m...")   # base58 secret key
+
+# Create Turbo client (billed as the "solana" token)
+turbo = Turbo(signer, network="mainnet")
+
+# Upload data
+result = turbo.upload(b"Hello from Solana!", tags=[
+    {"name": "Content-Type", "value": "text/plain"}
+])
+
+print(f"✅ Uploaded! URI: ar://{result.id}")
+```
+
 ## APIs
 
 ### Core Classes
@@ -67,7 +91,7 @@ Main client for interacting with Turbo services.
 
 **Parameters:**
 
-- `signer`: Either `EthereumSigner` or `ArweaveSigner` instance
+- `signer`: An `EthereumSigner`, `ArweaveSigner`, or `SolanaSigner` instance
 - `network`: `"mainnet"` or `"testnet"` (default: `"mainnet"`)
 - `upload_url`: Optional custom upload service URL (overrides network default)
 - `payment_url`: Optional custom payment service URL (overrides network default)
@@ -234,9 +258,31 @@ signer = ArweaveSigner({
 })
 ```
 
+#### `SolanaSigner(secret_key)`
+
+Solana signer using ed25519 signatures (ANS-104 signature type 2). The wallet
+address is the base58 encoding of the 32-byte ed25519 public key. Turbo bills
+uploads from this signer as the `solana` token.
+
+**Parameters:**
+
+- `secret_key`: One of:
+  - a Solana CLI keypair (`id.json` contents) as a `list` of 64 ints or its JSON string
+  - a raw 64-byte secret key (`bytes`/`bytearray`, seed ‖ public key)
+  - a raw 32-byte seed (`bytes`/`bytearray`)
+  - a base58-encoded secret key (`str`)
+
+```python
+# From a CLI keypair file:
+signer = SolanaSigner.from_file("~/.config/solana/id.json")
+
+# Or directly:
+signer = SolanaSigner(secret_key_bytes)
+```
+
 #### Signer Methods
 
-Both signers provide:
+All signers provide:
 
 ##### `get_wallet_address() -> str`
 

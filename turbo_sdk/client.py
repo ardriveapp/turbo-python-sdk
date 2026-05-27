@@ -31,6 +31,7 @@ class Turbo:
     # Map signature types to token names
     TOKEN_MAP = {
         1: "arweave",  # Arweave RSA-PSS
+        2: "solana",  # ED25519 raw — used by SolanaSigner; Turbo bills as solana
         3: "ethereum",  # Ethereum ECDSA
     }
 
